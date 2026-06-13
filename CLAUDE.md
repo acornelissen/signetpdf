@@ -80,6 +80,7 @@ Product **SignetPDF**; npm package + repo **signetpdf**; Tauri identifier **org.
 
 ## Git Approach
 
+- Conventional commit messages
 - Atomic commits, thin slices
 - Trunk-based development, NO PRs, no long-lived branches
 - Push to origin after major milestones
