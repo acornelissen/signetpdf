@@ -18,4 +18,9 @@ describe("loadPdfDocument", () => {
     await loadPdfDocument(bytes);
     expect(bytes.byteLength).toBe(fixture.byteLength);
   });
+
+  it("rejects bytes that are not a PDF", async () => {
+    const garbage = new TextEncoder().encode("definitely not a pdf, just some text");
+    await expect(loadPdfDocument(garbage)).rejects.toBeInstanceOf(Error);
+  });
 });

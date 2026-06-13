@@ -68,6 +68,16 @@ h1 {
   outline-offset: 2px;
 }
 
+.status {
+  margin: 0.75rem 0 0;
+  color: #b00020;
+  min-height: 1.25rem;
+}
+
+.status:empty {
+  display: none;
+}
+
 .viewer {
   margin-top: 1.5rem;
   display: flex;

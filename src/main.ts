@@ -1,7 +1,8 @@
 // SignetPDF frontend entry point.
 // Configures the pdf.js worker, renders a bundled fixture on startup so the
 // window is never empty, and lets the user open any PDF (via the Rust open_pdf
-// command), scroll all of its pages, and zoom.
+// command), scroll all of its pages, and zoom. Failures are reported in a status
+// line and never discard the currently rendered document.
 import "./pdf/worker";
 import fixtureUrl from "../fixtures/two-page.pdf?url";
 import { invoke } from "@tauri-apps/api/core";
@@ -17,9 +18,16 @@ interface OpenedPdf {
 
 interface Viewer {
   mount: HTMLElement;
+  status: HTMLElement | null;
   zoomLabel: HTMLElement | null;
   doc: PDFDocumentProxy | null;
   scale: number;
+}
+
+function setStatus(viewer: Viewer, message: string): void {
+  if (viewer.status) {
+    viewer.status.textContent = message;
+  }
 }
 
 async function rerender(viewer: Viewer): Promise<void> {
@@ -32,7 +40,10 @@ async function rerender(viewer: Viewer): Promise<void> {
 }
 
 async function setDocument(viewer: Viewer, bytes: Uint8Array): Promise<void> {
-  viewer.doc = await loadPdfDocument(bytes);
+  // Parse first; only swap in the new document once it has loaded, so a corrupt
+  // or non-PDF file leaves the currently rendered pages untouched.
+  const doc = await loadPdfDocument(bytes);
+  viewer.doc = doc;
   await rerender(viewer);
 }
 
@@ -71,29 +82,35 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const viewer: Viewer = {
     mount,
+    status: document.querySelector<HTMLElement>("#status"),
     zoomLabel: document.querySelector<HTMLElement>("#zoom-level"),
     doc: null,
     scale: 1.25,
   };
 
-  const report = (action: Promise<void>, what: string): void => {
-    action.catch((error: unknown) => {
-      mount.textContent = `Failed to ${what}: ${String(error)}`;
+  const run = (action: () => Promise<void>, what: string): void => {
+    setStatus(viewer, "");
+    action().catch((error: unknown) => {
+      setStatus(viewer, `Could not ${what}: ${String(error)}`);
     });
   };
 
   document
     .querySelector<HTMLButtonElement>("#open")
-    ?.addEventListener("click", () => report(openUserPdf(viewer), "open the PDF"));
+    ?.addEventListener("click", () => run(() => openUserPdf(viewer), "open that PDF"));
   document
     .querySelector<HTMLButtonElement>("#zoom-in")
-    ?.addEventListener("click", () => report(setScale(viewer, viewer.scale * ZOOM_STEP), "zoom"));
+    ?.addEventListener("click", () =>
+      run(() => setScale(viewer, viewer.scale * ZOOM_STEP), "zoom"),
+    );
   document
     .querySelector<HTMLButtonElement>("#zoom-out")
-    ?.addEventListener("click", () => report(setScale(viewer, viewer.scale / ZOOM_STEP), "zoom"));
+    ?.addEventListener("click", () =>
+      run(() => setScale(viewer, viewer.scale / ZOOM_STEP), "zoom"),
+    );
   document
     .querySelector<HTMLButtonElement>("#zoom-fit")
-    ?.addEventListener("click", () => report(fitWidth(viewer), "fit width"));
+    ?.addEventListener("click", () => run(() => fitWidth(viewer), "fit to width"));
 
-  report(showBundledFixture(viewer), "render the bundled PDF");
+  run(() => showBundledFixture(viewer), "render the bundled PDF");
 });
