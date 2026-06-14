@@ -5,6 +5,7 @@ import {
   removeAnnotation,
   setFieldValue,
   updateAnnotation,
+  withPages,
   type NewAnnotation,
 } from "./document";
 import { userSpacePoint } from "./geometry";
@@ -59,6 +60,23 @@ describe("setFieldValue", () => {
     expect(original.fieldValues).toEqual([]);
     expect(original.dirty).toBe(false);
     expect(updated).not.toBe(original);
+  });
+});
+
+describe("withPages", () => {
+  const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+  const pages = [{ index: 0, width: 612, height: 792, rotation: 0 }];
+
+  it("sets pages without marking the model dirty", () => {
+    const model = withPages(createModel(bytes), pages);
+    expect(model.pages).toEqual(pages);
+    expect(model.dirty).toBe(false);
+  });
+
+  it("does not mutate the input model", () => {
+    const original = createModel(bytes);
+    withPages(original, pages);
+    expect(original.pages).toEqual([]);
   });
 });
 

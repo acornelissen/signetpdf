@@ -58,6 +58,21 @@ const twoPage = buildPdf(
   1,
 );
 
+// One US-Letter page rotated 90 degrees via /Rotate (the MediaBox stays
+// portrait; only the display rotation differs).
+const rotated90 = buildPdf(
+  [
+    "<< /Type /Catalog /Pages 2 0 R >>", // 1
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", // 2
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Rotate 90 /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>", // 3
+    contentStream("Rotated"), // 4
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>", // 5
+  ],
+  1,
+);
+
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, "two-page.pdf"), twoPage);
 console.log(`wrote fixtures/two-page.pdf (${twoPage.length} bytes)`);
+writeFileSync(join(outDir, "rotated-90.pdf"), rotated90);
+console.log(`wrote fixtures/rotated-90.pdf (${rotated90.length} bytes)`);

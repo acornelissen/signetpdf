@@ -77,6 +77,14 @@ export function createModel(sourceBytes: Uint8Array): DocumentModel {
 }
 
 /**
+ * Populate page geometry on load. This is not a user edit, so the dirty flag is
+ * left unchanged; the input model is not touched.
+ */
+export function withPages(model: DocumentModel, pages: readonly PageGeometry[]): DocumentModel {
+  return freezeModel({ ...model, pages: [...pages] });
+}
+
+/**
  * Set an AcroForm field's value, returning a NEW model with dirty=true. An
  * existing field is replaced in place (the list does not grow); the input model
  * is never touched.
