@@ -1,13 +1,23 @@
+use std::collections::HashSet;
 use std::fmt;
-use std::path::Path;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
+use tempfile::NamedTempFile;
 
 /// Upper bound on a PDF we will load into memory. Generous for real documents,
 /// but stops a multi-gigabyte file from freezing the webview.
 pub const MAX_PDF_BYTES: u64 = 200 * 1024 * 1024;
+
+/// Paths the user granted us this session by choosing them in an open or save
+/// dialog. save_pdf will only write to a path in this set, so a compromised
+/// webview cannot ask the backend to overwrite arbitrary files.
+#[derive(Default)]
+pub struct GrantedPaths(pub Mutex<HashSet<PathBuf>>);
 
 /// A PDF the user opened: its absolute path (so we can later save in place) and
 /// its raw bytes (handed to pdf.js on the frontend).
@@ -44,6 +54,33 @@ impl From<std::io::Error> for ReadError {
     }
 }
 
+/// Why a save failed.
+#[derive(Debug)]
+pub enum SaveError {
+    Io(std::io::Error),
+    NotGranted,
+}
+
+impl fmt::Display for SaveError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SaveError::Io(err) => write!(f, "Could not save the file: {err}"),
+            SaveError::NotGranted => {
+                write!(
+                    f,
+                    "Refusing to write to a path that was not chosen via a dialog."
+                )
+            }
+        }
+    }
+}
+
+impl From<std::io::Error> for SaveError {
+    fn from(err: std::io::Error) -> Self {
+        SaveError::Io(err)
+    }
+}
+
 /// Reject a file whose size exceeds the limit before we read it into memory.
 fn ensure_within_limit(size: u64, max: u64) -> Result<(), ReadError> {
     if size > max {
@@ -61,11 +98,54 @@ pub fn read_pdf_file(path: &Path) -> Result<Vec<u8>, ReadError> {
     Ok(std::fs::read(path)?)
 }
 
+/// A canonical, comparable key for a path that works whether or not the file
+/// exists yet: the canonicalized parent directory (symlinks and `..` resolved)
+/// joined with the file name. Used to match a save target against granted paths.
+fn canonical_key(path: &Path) -> std::io::Result<PathBuf> {
+    let file = path.file_name().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "path has no file name")
+    })?;
+    let parent = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => PathBuf::from("."),
+    };
+    Ok(parent.canonicalize()?.join(file))
+}
+
+/// Atomically write bytes to `path`: write a temp file in the same directory,
+/// fsync it, then rename over the target. A failed or interrupted write can
+/// never corrupt the user's existing PDF.
+fn atomic_write(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let dir = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => PathBuf::from("."),
+    };
+    let mut tmp = NamedTempFile::new_in(&dir)?;
+    tmp.write_all(bytes)?;
+    tmp.as_file().sync_all()?;
+    tmp.persist(path).map_err(|err| err.error)?;
+    Ok(())
+}
+
+/// Write PDF bytes to `path`, but only if that path was granted via a dialog.
+/// The single guarded-write entry point, kept pure for unit testing.
+pub fn write_pdf(granted: &HashSet<PathBuf>, path: &Path, bytes: &[u8]) -> Result<(), SaveError> {
+    let key = canonical_key(path)?;
+    if !granted.contains(&key) {
+        return Err(SaveError::NotGranted);
+    }
+    atomic_write(path, bytes)?;
+    Ok(())
+}
+
 /// Show a native open dialog filtered to PDFs, then return the chosen file's
-/// path and bytes. Returns `Ok(None)` when the user cancels; `Err` (with a
-/// readable message) when the file cannot be read or is too large.
+/// path and bytes. The chosen path is granted for later in-place saves. Returns
+/// `Ok(None)` when the user cancels.
 #[tauri::command]
-pub async fn open_pdf(app: AppHandle) -> Result<Option<OpenedPdf>, String> {
+pub async fn open_pdf(
+    app: AppHandle,
+    granted: State<'_, GrantedPaths>,
+) -> Result<Option<OpenedPdf>, String> {
     let picked = app
         .dialog()
         .file()
@@ -78,17 +158,61 @@ pub async fn open_pdf(app: AppHandle) -> Result<Option<OpenedPdf>, String> {
 
     let path = picked.into_path().map_err(|e| e.to_string())?;
     let bytes = read_pdf_file(&path).map_err(|e| e.to_string())?;
+    if let Ok(key) = canonical_key(&path) {
+        granted.0.lock().expect("granted paths lock").insert(key);
+    }
     Ok(Some(OpenedPdf {
         path: path.to_string_lossy().into_owned(),
         bytes,
     }))
 }
 
+/// Save bytes to an already-granted path (Save). Refuses paths not granted this
+/// session.
+#[tauri::command]
+pub fn save_pdf(
+    granted: State<'_, GrantedPaths>,
+    path: String,
+    bytes: Vec<u8>,
+) -> Result<(), String> {
+    let set = granted.0.lock().expect("granted paths lock").clone();
+    write_pdf(&set, Path::new(&path), &bytes).map_err(|e| e.to_string())
+}
+
+/// Show a save dialog, grant the chosen path, and write to it (Save As). Returns
+/// the chosen path, or `Ok(None)` if the user cancels.
+#[tauri::command]
+pub async fn save_pdf_as(
+    app: AppHandle,
+    granted: State<'_, GrantedPaths>,
+    bytes: Vec<u8>,
+) -> Result<Option<String>, String> {
+    let picked = app
+        .dialog()
+        .file()
+        .add_filter("PDF", &["pdf"])
+        .blocking_save_file();
+
+    let Some(picked) = picked else {
+        return Ok(None);
+    };
+
+    let path = picked.into_path().map_err(|e| e.to_string())?;
+    let key = canonical_key(&path).map_err(|e| e.to_string())?;
+    let set = {
+        let mut granted = granted.0.lock().expect("granted paths lock");
+        granted.insert(key);
+        granted.clone()
+    };
+    write_pdf(&set, &path, &bytes).map_err(|e| e.to_string())?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn fixture_path() -> std::path::PathBuf {
+    fn fixture_path() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/two-page.pdf")
     }
 
@@ -117,5 +241,46 @@ mod tests {
     fn rejects_a_file_over_the_limit() {
         let err = ensure_within_limit(MAX_PDF_BYTES + 1, MAX_PDF_BYTES);
         assert!(matches!(err, Err(ReadError::TooLarge { .. })));
+    }
+
+    #[test]
+    fn atomic_write_round_trips_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.pdf");
+        atomic_write(&path, b"%PDF-hello").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"%PDF-hello");
+    }
+
+    #[test]
+    fn writes_to_a_granted_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.pdf");
+        let mut granted = HashSet::new();
+        granted.insert(canonical_key(&path).unwrap());
+        write_pdf(&granted, &path, b"%PDF-data").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"%PDF-data");
+    }
+
+    #[test]
+    fn refuses_a_non_granted_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.pdf");
+        let granted = HashSet::new();
+        assert!(matches!(
+            write_pdf(&granted, &path, b"x"),
+            Err(SaveError::NotGranted)
+        ));
+        assert!(!path.exists(), "refused write must not create the file");
+    }
+
+    #[test]
+    fn overwrites_a_granted_existing_file_in_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.pdf");
+        std::fs::write(&path, b"old").unwrap();
+        let mut granted = HashSet::new();
+        granted.insert(canonical_key(&path).unwrap());
+        write_pdf(&granted, &path, b"new").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"new");
     }
 }
