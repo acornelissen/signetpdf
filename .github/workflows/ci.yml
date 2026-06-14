@@ -45,7 +45,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test
+      - run: npm run coverage
 
       - name: Rust format
         working-directory: src-tauri

@@ -123,6 +123,30 @@ describe("annotation mutations", () => {
     expect(updated.annotations[0]).toMatchObject({ id: existing.id, text: "changed" });
   });
 
+  it("adds a signature stamp (the other union arm)", () => {
+    const stamp: NewAnnotation = {
+      kind: "signature",
+      page: 0,
+      origin: userSpacePoint(100, 100),
+      width: 120,
+      height: 60,
+      pngBytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    };
+    const model = addAnnotation(createModel(bytes), stamp);
+    expect(model.annotations[0]?.kind).toBe("signature");
+  });
+
+  it("leaves the list unchanged when updating an unknown id", () => {
+    const added = addAnnotation(createModel(bytes), draft);
+    const existing = added.annotations[0];
+    if (existing?.kind !== "text") {
+      throw new Error("expected a text annotation");
+    }
+    const updated = updateAnnotation(added, { ...existing, id: "does-not-exist", text: "x" });
+    expect(updated.annotations).toHaveLength(1);
+    expect(updated.annotations[0]?.id).toBe(existing.id);
+  });
+
   it("removes an annotation by id", () => {
     const added = addAnnotation(createModel(bytes), draft);
     const id = added.annotations[0]?.id ?? "";
