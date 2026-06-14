@@ -16,3 +16,17 @@ export interface UserSpacePoint {
 export function userSpacePoint(x: number, y: number): UserSpacePoint {
   return { x, y } as unknown as UserSpacePoint;
 }
+
+declare const screenSpaceBrand: unique symbol;
+
+/** A point in screen space: CSS pixels, origin at the top-left of the page. */
+export interface ScreenPoint {
+  readonly x: number;
+  readonly y: number;
+  readonly [screenSpaceBrand]: true;
+}
+
+/** Construct a screen-space point. Produced only by the coordinate seam. */
+export function screenPoint(x: number, y: number): ScreenPoint {
+  return { x, y } as unknown as ScreenPoint;
+}
