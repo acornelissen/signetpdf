@@ -28,9 +28,16 @@ describe("listFormFields", () => {
     expect(byName.get("choice.fruit")?.options).toEqual(["Apple", "Pear", "Plum"]);
   });
 
-  it("returns a widget per radio option", async () => {
+  it("returns a widget per radio option, each with its on-value", async () => {
     const found = await fields("acroform.pdf");
-    expect(found.filter((field) => field.name === "radio.color")).toHaveLength(2);
+    const radios = found.filter((field) => field.name === "radio.color");
+    expect(radios).toHaveLength(2);
+    expect(radios.map((r) => r.onValue).sort()).toEqual(["0", "1"]);
+  });
+
+  it("captures a checkbox on-value", async () => {
+    const found = await fields("acroform.pdf");
+    expect(found.find((field) => field.name === "check.agree")?.onValue).toBe("Yes");
   });
 
   it("captures page index and a user-space rectangle", async () => {

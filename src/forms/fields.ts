@@ -21,6 +21,8 @@ export interface FormField {
   readonly page: number; // 0-based index into model.pages
   readonly rect: FieldRect;
   readonly options?: readonly string[];
+  // The "on" value for this checkbox/radio widget (pdf.js export/button value).
+  readonly onValue?: string;
 }
 
 // pdf.js getAnnotations() is loosely typed; this is the subset we read.
@@ -32,6 +34,8 @@ interface PdfWidget {
   checkBox?: boolean;
   radioButton?: boolean;
   combo?: boolean;
+  exportValue?: string;
+  buttonValue?: string;
   options?: Array<{ exportValue?: string; displayValue?: string }>;
 }
 
@@ -68,6 +72,7 @@ export async function listFormFields(doc: PDFDocumentProxy): Promise<FormField[]
       const options = widget.options?.map(
         (option) => option.displayValue ?? option.exportValue ?? "",
       );
+      const onValue = widget.buttonValue ?? widget.exportValue;
       fields.push({
         name: widget.fieldName ?? "",
         kind,
@@ -79,6 +84,7 @@ export async function listFormFields(doc: PDFDocumentProxy): Promise<FormField[]
           height: Math.abs(y2 - y1),
         },
         ...(options ? { options } : {}),
+        ...(onValue !== undefined ? { onValue } : {}),
       });
     }
   }

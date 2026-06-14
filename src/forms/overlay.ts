@@ -53,14 +53,49 @@ export function buildFieldControl(
   page: PageGeometry,
   viewport: Viewport,
 ): HTMLElement | null {
-  if (field.kind !== "text") {
+  const control = createControl(field);
+  if (!control) {
     return null;
   }
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "field field-text";
-  input.setAttribute("aria-label", field.name);
-  input.dataset.fieldName = field.name;
-  position(input, fieldScreenRect(field, page, viewport));
-  return input;
+  control.classList.add("field");
+  control.dataset.fieldName = field.name;
+  position(control, fieldScreenRect(field, page, viewport));
+  return control;
+}
+
+function createControl(field: FormField): HTMLInputElement | null {
+  switch (field.kind) {
+    case "text": {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.classList.add("field-text");
+      input.setAttribute("aria-label", field.name);
+      return input;
+    }
+    case "checkbox": {
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.classList.add("field-toggle");
+      input.setAttribute("aria-label", field.name);
+      if (field.onValue !== undefined) {
+        input.value = field.onValue;
+      }
+      return input;
+    }
+    case "radio": {
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.classList.add("field-toggle");
+      // Shared name makes the browser enforce group exclusivity.
+      input.name = field.name;
+      if (field.onValue !== undefined) {
+        input.value = field.onValue;
+      }
+      input.setAttribute("aria-label", `${field.name}: ${field.onValue ?? ""}`);
+      return input;
+    }
+    default:
+      // dropdown / optionlist arrive in m2-4.
+      return null;
+  }
 }
