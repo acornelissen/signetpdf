@@ -1,4 +1,5 @@
 import type { UserSpacePoint } from "./geometry";
+import { createId } from "./id";
 
 // The single source of truth. Every field is readonly so the compiler rejects
 // in-place mutation; all geometry is PDF user space (never screen pixels).
@@ -91,4 +92,31 @@ export function setFieldValue(
     ? model.fieldValues.map((field) => (field.fieldName === fieldName ? entry : field))
     : [...model.fieldValues, entry];
   return freezeModel({ ...model, fieldValues, dirty: true });
+}
+
+/** An annotation to add, without its id (the model mints the id centrally). */
+export type NewAnnotation = Omit<TextBox, "id"> | Omit<SignatureStamp, "id">;
+
+/** Add an annotation with a freshly minted id; returns a new, dirty model. */
+export function addAnnotation(model: DocumentModel, draft: NewAnnotation): DocumentModel {
+  const annotation = { ...draft, id: createId() } as Annotation;
+  return freezeModel({
+    ...model,
+    annotations: [...model.annotations, annotation],
+    dirty: true,
+  });
+}
+
+/** Replace the annotation with the same id; returns a new, dirty model. */
+export function updateAnnotation(model: DocumentModel, annotation: Annotation): DocumentModel {
+  const annotations = model.annotations.map((existing) =>
+    existing.id === annotation.id ? annotation : existing,
+  );
+  return freezeModel({ ...model, annotations, dirty: true });
+}
+
+/** Remove the annotation with the given id; returns a new, dirty model. */
+export function removeAnnotation(model: DocumentModel, id: string): DocumentModel {
+  const annotations = model.annotations.filter((annotation) => annotation.id !== id);
+  return freezeModel({ ...model, annotations, dirty: true });
 }

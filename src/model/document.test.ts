@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { createModel, setFieldValue } from "./document";
+import {
+  addAnnotation,
+  createModel,
+  removeAnnotation,
+  setFieldValue,
+  updateAnnotation,
+  type NewAnnotation,
+} from "./document";
+import { userSpacePoint } from "./geometry";
 
 describe("createModel", () => {
   const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
@@ -51,5 +59,50 @@ describe("setFieldValue", () => {
     expect(original.fieldValues).toEqual([]);
     expect(original.dirty).toBe(false);
     expect(updated).not.toBe(original);
+  });
+});
+
+describe("annotation mutations", () => {
+  const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+  const draft: NewAnnotation = {
+    kind: "text",
+    page: 0,
+    origin: userSpacePoint(72, 700),
+    width: 200,
+    height: 24,
+    text: "hello",
+    fontSize: 12,
+  };
+
+  it("adds an annotation with a generated id and marks dirty", () => {
+    const model = addAnnotation(createModel(bytes), draft);
+    expect(model.annotations).toHaveLength(1);
+    expect(model.annotations[0]?.id).toBeTruthy();
+    expect(model.dirty).toBe(true);
+  });
+
+  it("updates an annotation by id", () => {
+    const added = addAnnotation(createModel(bytes), draft);
+    const existing = added.annotations[0];
+    if (existing?.kind !== "text") {
+      throw new Error("expected a text annotation");
+    }
+    const updated = updateAnnotation(added, { ...existing, text: "changed" });
+    expect(updated.annotations).toHaveLength(1);
+    expect(updated.annotations[0]).toMatchObject({ id: existing.id, text: "changed" });
+  });
+
+  it("removes an annotation by id", () => {
+    const added = addAnnotation(createModel(bytes), draft);
+    const id = added.annotations[0]?.id ?? "";
+    expect(removeAnnotation(added, id).annotations).toEqual([]);
+  });
+
+  it("does not mutate the input across add and remove", () => {
+    const base = createModel(bytes);
+    const added = addAnnotation(base, draft);
+    expect(base.annotations).toEqual([]);
+    removeAnnotation(added, added.annotations[0]?.id ?? "");
+    expect(added.annotations).toHaveLength(1);
   });
 });
