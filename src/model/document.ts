@@ -52,18 +52,43 @@ export interface DocumentModel {
   readonly dirty: boolean;
 }
 
+/** Freeze a model and its collections so in-place mutation fails at runtime too. */
+function freezeModel(model: DocumentModel): DocumentModel {
+  Object.freeze(model.fieldValues);
+  Object.freeze(model.annotations);
+  Object.freeze(model.pages);
+  return Object.freeze(model);
+}
+
 /**
  * Create an empty, non-dirty model that holds the original PDF bytes. Pages are
  * populated on load (m1-4); field values and annotations are added through the
- * immutable mutators. The result is frozen so accidental in-place mutation fails
- * loudly at runtime as well as at compile time.
+ * immutable mutators.
  */
 export function createModel(sourceBytes: Uint8Array): DocumentModel {
-  return Object.freeze({
+  return freezeModel({
     sourceBytes,
-    fieldValues: Object.freeze([]) as readonly FieldValue[],
-    annotations: Object.freeze([]) as readonly Annotation[],
-    pages: Object.freeze([]) as readonly PageGeometry[],
+    fieldValues: [],
+    annotations: [],
+    pages: [],
     dirty: false,
   });
+}
+
+/**
+ * Set an AcroForm field's value, returning a NEW model with dirty=true. An
+ * existing field is replaced in place (the list does not grow); the input model
+ * is never touched.
+ */
+export function setFieldValue(
+  model: DocumentModel,
+  fieldName: string,
+  value: string | boolean,
+): DocumentModel {
+  const entry: FieldValue = { kind: "field", fieldName, value };
+  const exists = model.fieldValues.some((field) => field.fieldName === fieldName);
+  const fieldValues = exists
+    ? model.fieldValues.map((field) => (field.fieldName === fieldName ? entry : field))
+    : [...model.fieldValues, entry];
+  return freezeModel({ ...model, fieldValues, dirty: true });
 }
