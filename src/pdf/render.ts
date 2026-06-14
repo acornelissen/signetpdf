@@ -22,21 +22,40 @@ export async function renderPageToCanvas(
   await page.render({ canvas, canvasContext, viewport }).promise;
 }
 
+/** A rendered page and the overlay layer stacked over its canvas. */
+export interface RenderedPage {
+  readonly index: number; // 0-based
+  readonly overlay: HTMLElement;
+}
+
 /**
- * Render every page of a document, stacked top to bottom, into `mount`. Existing
- * content is cleared first. Pages render in order; large-document virtualisation
- * (only drawing near-viewport pages) is deferred to m5-9.
+ * Render every page of a document, stacked top to bottom, into `mount`. Each page
+ * is a positioned container holding the canvas and an empty overlay layer the
+ * caller fills with form/annotation controls (placed via the coordinate seam).
+ * Existing content is cleared first; large-document virtualisation is m5-9.
  */
 export async function renderAllPages(
   doc: PDFDocumentProxy,
   mount: HTMLElement,
   scale = 1.25,
-): Promise<void> {
+): Promise<RenderedPage[]> {
   mount.replaceChildren();
+  const pages: RenderedPage[] = [];
   for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
+    const container = document.createElement("div");
+    container.className = "page-container";
+
     const canvas = document.createElement("canvas");
     canvas.className = "page";
-    mount.appendChild(canvas);
+    container.appendChild(canvas);
+
+    const overlay = document.createElement("div");
+    overlay.className = "overlay";
+    container.appendChild(overlay);
+
+    mount.appendChild(container);
     await renderPageToCanvas(doc, pageNumber, canvas, scale);
+    pages.push({ index: pageNumber - 1, overlay });
   }
+  return pages;
 }

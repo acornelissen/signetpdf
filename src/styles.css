@@ -86,12 +86,35 @@ h1 {
   gap: 1rem;
 }
 
-.viewer .page {
-  max-width: 100%;
-  height: auto;
+.page-container {
+  position: relative;
+  line-height: 0;
+}
+
+.page-container .page {
+  display: block;
   border: 1px solid rgba(0, 0, 0, 0.15);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
   background: #fff;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.overlay .field {
+  position: absolute;
+  margin: 0;
+  box-sizing: border-box;
+  font: inherit;
+  line-height: normal;
+}
+
+.overlay .field-text {
+  border: 1px solid #396cd8;
+  background: rgba(57, 108, 216, 0.06);
+  padding: 0 2px;
 }
 
 @media (prefers-color-scheme: dark) {

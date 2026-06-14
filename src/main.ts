@@ -8,6 +8,8 @@ import fixtureUrl from "../fixtures/two-page.pdf?url";
 import { invoke } from "@tauri-apps/api/core";
 import type { PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { createModel, markSaved, withPages, type DocumentModel } from "./model/document";
+import { listFormFields, type FormField } from "./forms/fields";
+import { buildFieldControl } from "./forms/overlay";
 import { hasXfa } from "./forms/xfa";
 import { loadPdfDocument } from "./pdf/document";
 import { capturePageGeometry } from "./pdf/geometry";
@@ -26,6 +28,7 @@ interface Viewer {
   zoomLabel: HTMLElement | null;
   doc: PDFDocumentProxy | null;
   model: DocumentModel | null;
+  fields: FormField[];
   path: string | null;
   scale: number;
 }
@@ -40,8 +43,26 @@ async function rerender(viewer: Viewer): Promise<void> {
   if (viewer.zoomLabel) {
     viewer.zoomLabel.textContent = `${Math.round(viewer.scale * 100)}%`;
   }
-  if (viewer.doc) {
-    await renderAllPages(viewer.doc, viewer.mount, viewer.scale);
+  if (!viewer.doc || !viewer.model) {
+    return;
+  }
+  const viewport = { scale: viewer.scale };
+  const rendered = await renderAllPages(viewer.doc, viewer.mount, viewer.scale);
+  // Re-place form controls over each freshly rendered page.
+  for (const page of rendered) {
+    const geometry = viewer.model.pages[page.index];
+    if (!geometry) {
+      continue;
+    }
+    for (const field of viewer.fields) {
+      if (field.page !== page.index) {
+        continue;
+      }
+      const control = buildFieldControl(field, geometry, viewport);
+      if (control) {
+        page.overlay.appendChild(control);
+      }
+    }
   }
 }
 
@@ -50,6 +71,7 @@ async function setDocument(viewer: Viewer, bytes: Uint8Array, path: string | nul
   const pages = await capturePageGeometry(doc);
   viewer.doc = doc;
   viewer.model = withPages(createModel(bytes), pages);
+  viewer.fields = await listFormFields(doc);
   viewer.path = path;
   await rerender(viewer);
 }
@@ -134,6 +156,7 @@ window.addEventListener("DOMContentLoaded", () => {
     zoomLabel: document.querySelector<HTMLElement>("#zoom-level"),
     doc: null,
     model: null,
+    fields: [],
     path: null,
     scale: 1.25,
   };
