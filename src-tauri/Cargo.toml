@@ -1,6 +1,6 @@
 [package]
 name = "signetpdf"
-version = "0.2.0"
+version = "0.3.0"
 description = "A minimal, free, cross-platform PDF viewer for filling forms, editing text and signing."
 authors = ["The SignetPDF contributors"]
 edition = "2021"
