@@ -16,10 +16,16 @@ import {
   withPages,
   type DocumentModel,
   type PageGeometry,
+  type TextBox,
 } from "./model/document";
 import { screenPoint } from "./model/geometry";
 import { createTextBoxAt } from "./annotations/text";
-import { bindTextBoxControl, buildTextBoxControl } from "./annotations/overlay";
+import {
+  bindTextBoxControl,
+  bindTextBoxDrag,
+  buildTextBoxControl,
+  textBoxInput,
+} from "./annotations/overlay";
 import { listFormFields, type FormField } from "./forms/fields";
 import { applyFieldValue, bindFieldControl, buildFieldControl } from "./forms/overlay";
 import { hasXfa } from "./forms/xfa";
@@ -94,16 +100,21 @@ function placeTextBoxes(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
     if (annotation.kind !== "text" || annotation.page !== page.index) {
       continue;
     }
-    const control = buildTextBoxControl(annotation, geometry, viewport);
-    bindTextBoxControl(control, annotation, (updated) => {
+    const commit = (updated: TextBox): void => {
       if (viewer.model) {
         viewer.model = updateAnnotation(viewer.model, updated);
       }
+    };
+    const control = buildTextBoxControl(annotation, geometry, viewport);
+    bindTextBoxControl(control, annotation, commit);
+    bindTextBoxDrag(control, annotation, geometry, viewport, (updated) => {
+      commit(updated);
+      void rerender(viewer);
     });
     page.overlay.appendChild(control);
     if (annotation.id === viewer.focusAnnotationId) {
       viewer.focusAnnotationId = null;
-      control.focus();
+      textBoxInput(control).focus();
     }
   }
 }

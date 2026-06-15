@@ -127,14 +127,38 @@ h1 {
   background: rgba(57, 108, 216, 0.06);
 }
 
-/* Editable free-text annotation. Black text over the white page, dashed accent
-   border so the box is visible while editing; it draws solid black on save. */
+/* Editable free-text annotation: a container holding a drag grip and an inner
+   textarea. Dashed accent border while editing; it draws solid black on save. */
 .overlay .text-box {
   position: absolute;
-  margin: 0;
-  padding: 0 2px;
+  box-sizing: border-box;
   border: 1px dashed #396cd8;
   background: rgba(57, 108, 216, 0.04);
+}
+
+/* Drag grip floating just above the box; the only move target, so dragging
+   never fights text selection in the textarea. */
+.overlay .text-box-grip {
+  position: absolute;
+  top: -14px;
+  left: -1px;
+  width: 28px;
+  height: 14px;
+  border: 1px solid #396cd8;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: #396cd8;
+  cursor: move;
+}
+
+.overlay .text-box-input {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
   color: #0f0f0f;
   font-family: inherit;
   line-height: 1.1;
@@ -142,7 +166,7 @@ h1 {
   overflow: hidden;
 }
 
-.overlay .text-box:focus-visible {
+.overlay .text-box-input:focus-visible {
   outline: 2px solid #396cd8;
   outline-offset: 1px;
 }

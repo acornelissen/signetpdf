@@ -1,11 +1,15 @@
 import { modelToScreen, type Viewport } from "../model/coords";
 import type { PageGeometry, TextBox } from "../model/document";
-import { userSpacePoint } from "../model/geometry";
+import { screenPoint, userSpacePoint } from "../model/geometry";
+import { moveTextBox } from "./transform";
 
 // The text-annotation overlay: a positioned, editable HTML layer drawn over the
 // rendered page. Like the form overlay it holds no state of its own — the box is
-// placed through the one coordinate seam and every edit routes back to the model
-// (invariant 1). Move (m3-3), resize (m3-4) and delete (m3-5) build on this.
+// placed through the one coordinate seam and every edit, move, resize (m3-4) and
+// delete (m3-5) routes back to the model (invariant 1).
+//
+// Each box is a container holding a move grip and an inner textarea. The grip is
+// the drag target so moving never fights text selection inside the textarea.
 
 /** A box's CSS rectangle within a page overlay (pixels, top-left origin). */
 export interface ScreenRect {
@@ -46,57 +50,123 @@ function position(element: HTMLElement, rect: ScreenRect): void {
   element.style.height = `${rect.height}px`;
 }
 
+/** The inner editable textarea of a text-box container. */
+export function textBoxInput(container: HTMLElement): HTMLTextAreaElement {
+  const input = container.querySelector<HTMLTextAreaElement>(".text-box-input");
+  if (!input) {
+    throw new Error("text box container is missing its input");
+  }
+  return input;
+}
+
 /**
- * Build the editable control for a text box, positioned in the page overlay. The
- * font size is scaled by the viewport so on-screen text tracks the rendered page;
- * the value comes from the model. Binding to the model happens in bindTextBoxControl.
+ * Build the control for a text box: a positioned container with a move grip and
+ * an editable textarea. The font size is scaled by the viewport so on-screen
+ * text tracks the rendered page; the value comes from the model. Binding happens
+ * in bindTextBoxControl (edit) and bindTextBoxDrag (move).
  */
 export function buildTextBoxControl(
   box: TextBox,
   page: PageGeometry,
   viewport: Viewport,
-): HTMLTextAreaElement {
-  const textarea = document.createElement("textarea");
-  textarea.className = "text-box";
-  textarea.dataset.annotationId = box.id;
-  textarea.value = box.text;
-  textarea.setAttribute("aria-label", "Text annotation");
-  textarea.style.fontSize = `${box.fontSize * viewport.scale}px`;
-  position(textarea, textBoxScreenRect(box, page, viewport));
-  return textarea;
+): HTMLElement {
+  const container = document.createElement("div");
+  container.className = "text-box";
+  container.dataset.annotationId = box.id;
+  position(container, textBoxScreenRect(box, page, viewport));
+
+  const grip = document.createElement("div");
+  grip.className = "text-box-grip";
+  grip.setAttribute("aria-hidden", "true");
+  container.appendChild(grip);
+
+  const input = document.createElement("textarea");
+  input.className = "text-box-input";
+  input.value = box.text;
+  input.setAttribute("aria-label", "Text annotation");
+  input.style.fontSize = `${box.fontSize * viewport.scale}px`;
+  container.appendChild(input);
+
+  return container;
 }
 
 /**
- * Wire a text box control's edits to the model. The edit commits on blur or
- * Enter (only when the text actually changed); Escape reverts the control and
- * commits nothing, so the model stays the single source of truth.
+ * Wire a text box's edits to the model. The edit commits on blur or Enter (only
+ * when the text actually changed); Escape reverts the control and commits
+ * nothing, so the model stays the single source of truth.
  */
 export function bindTextBoxControl(
-  textarea: HTMLTextAreaElement,
+  container: HTMLElement,
   box: TextBox,
   onCommit: (updated: TextBox) => void,
 ): void {
+  const input = textBoxInput(container);
   let cancelled = false;
 
-  textarea.addEventListener("keydown", (event) => {
+  input.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      textarea.blur();
+      input.blur();
     } else if (event.key === "Escape") {
       event.preventDefault();
       cancelled = true;
-      textarea.value = box.text;
-      textarea.blur();
+      input.value = box.text;
+      input.blur();
     }
   });
 
-  textarea.addEventListener("blur", () => {
+  input.addEventListener("blur", () => {
     if (cancelled) {
       cancelled = false;
       return;
     }
-    if (textarea.value !== box.text) {
-      onCommit({ ...box, text: textarea.value });
+    if (input.value !== box.text) {
+      onCommit({ ...box, text: input.value });
     }
+  });
+}
+
+/**
+ * Wire the move grip so dragging it repositions the box. The container follows
+ * the pointer for live feedback; the committed move (origin in user space) is
+ * computed through the seam and pushed to the model once on pointer-up.
+ */
+export function bindTextBoxDrag(
+  container: HTMLElement,
+  box: TextBox,
+  page: PageGeometry,
+  viewport: Viewport,
+  onMove: (updated: TextBox) => void,
+): void {
+  const grip = container.querySelector<HTMLElement>(".text-box-grip");
+  if (!grip) {
+    return;
+  }
+
+  grip.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startLeft = Number.parseFloat(container.style.left) || 0;
+    const startTop = Number.parseFloat(container.style.top) || 0;
+
+    const onPointerMove = (move: PointerEvent): void => {
+      container.style.left = `${startLeft + (move.clientX - startX)}px`;
+      container.style.top = `${startTop + (move.clientY - startY)}px`;
+    };
+
+    const onPointerUp = (up: PointerEvent): void => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      if (up.clientX === startX && up.clientY === startY) {
+        return; // a click, not a drag
+      }
+      const from = screenPoint(startX, startY);
+      const to = screenPoint(up.clientX, up.clientY);
+      onMove(moveTextBox(box, from, to, page, viewport));
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
   });
 }
