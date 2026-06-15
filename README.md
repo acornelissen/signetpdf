@@ -8,9 +8,11 @@ result back to a real PDF. It is deliberately small: no accounts, no cloud, no t
 
 ## Status
 
-Early development. See the build plan in the [beads](https://github.com/gastownhall/beads)
-tracker under `.beads/` (`bd ready` to list available work). Milestone M0 (the walking
-skeleton) is in progress.
+Early development, approaching a 0.1.0 release. Form filling, free-text annotation, visual
+signatures, undo/redo and flatten-on-export work; packaging is the remaining milestone. See
+the build plan in the [beads](https://github.com/gastownhall/beads) tracker under `.beads/`
+(`bd ready` to list available work), and [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for current
+limitations.
 
 ## Requirements
 
@@ -43,7 +45,8 @@ npm run tauri build   # produce a platform bundle in src-tauri/target
 ```
 
 Binary code-signing and notarization are out of scope for 0.1.0: macOS builds are
-unnotarized (Gatekeeper warning) and Windows builds are unsigned (SmartScreen warning).
+unnotarized (Gatekeeper warning) and Windows builds are unsigned (SmartScreen warning). See
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the launch workarounds and other limitations.
 
 ## License
 
