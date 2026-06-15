@@ -1,6 +1,11 @@
 import { modelToScreen, screenToModel, type Viewport } from "../model/coords";
 import type { PageGeometry, TextBox } from "../model/document";
-import { screenPoint, userSpacePoint, type ScreenPoint } from "../model/geometry";
+import {
+  screenPoint,
+  userSpacePoint,
+  type ScreenPoint,
+  type UserSpacePoint,
+} from "../model/geometry";
 
 // Pure geometry for placing and dragging text boxes. Placement and both drags
 // (move m3-3, resize m3-4) go through the one coordinate seam, so they stay
@@ -19,18 +24,21 @@ export interface ScreenRect {
 }
 
 /**
- * Convert a text box's user-space rectangle to its CSS box on screen by running
- * two opposite corners through the seam and taking their bounding box, so it
- * lines up with the rendered page at any scale and rotation.
+ * Convert a user-space rectangle (origin + size) to its CSS box on screen by
+ * running two opposite corners through the seam and taking their bounding box,
+ * so it lines up with the rendered page at any scale and rotation. Shared by
+ * every annotation overlay (text boxes, signature stamps).
  */
-export function textBoxScreenRect(
-  box: TextBox,
+export function annotationScreenRect(
+  origin: UserSpacePoint,
+  width: number,
+  height: number,
   page: PageGeometry,
   viewport: Viewport,
 ): ScreenRect {
-  const corner1 = modelToScreen(userSpacePoint(box.origin.x, box.origin.y), page, viewport);
+  const corner1 = modelToScreen(origin, page, viewport);
   const corner2 = modelToScreen(
-    userSpacePoint(box.origin.x + box.width, box.origin.y + box.height),
+    userSpacePoint(origin.x + width, origin.y + height),
     page,
     viewport,
   );
@@ -40,6 +48,15 @@ export function textBoxScreenRect(
     width: Math.abs(corner1.x - corner2.x),
     height: Math.abs(corner1.y - corner2.y),
   };
+}
+
+/** The CSS box for a text box (see annotationScreenRect). */
+export function textBoxScreenRect(
+  box: TextBox,
+  page: PageGeometry,
+  viewport: Viewport,
+): ScreenRect {
+  return annotationScreenRect(box.origin, box.width, box.height, page, viewport);
 }
 
 /** The user-space vector covered by a screen drag from `from` to `to`. */

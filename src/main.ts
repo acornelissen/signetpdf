@@ -21,6 +21,9 @@ import {
 } from "./model/document";
 import { screenPoint } from "./model/geometry";
 import { createTextBoxAt } from "./annotations/text";
+import { createSignatureStampAt, type StampImage } from "./sign/stamp";
+import { bindStampDelete, buildStampControl } from "./sign/overlay";
+import { createSignaturePad, type SignaturePad } from "./sign/pad";
 import {
   bindTextBoxControl,
   bindTextBoxDelete,
@@ -63,9 +66,15 @@ interface Viewer {
   scale: number;
   // When the text tool is armed, clicking a page creates a text box.
   textTool: boolean;
+  // When a signature is armed, clicking a page places it as a stamp.
+  pendingStamp: StampImage | null;
   // Id of a just-created box to focus after the next re-render.
   focusAnnotationId: string | null;
 }
+
+// Signature pad size (CSS px); the placed stamp keeps this aspect ratio.
+const SIGNATURE_PAD = { width: 440, height: 180 };
+const DEFAULT_STAMP_WIDTH = 200; // user-space points
 
 function setStatus(viewer: Viewer, message: string): void {
   if (viewer.status) {
@@ -130,19 +139,55 @@ function placeTextBoxes(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
   }
 }
 
-/** Arm the page so a click creates a text box when the text tool is active. */
-function armTextTool(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): void {
+/** Place the signature-stamp controls for one page, bound back to the model. */
+function placeStamps(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): void {
+  const viewport = { scale: viewer.scale };
+  for (const annotation of viewer.model?.annotations ?? []) {
+    if (annotation.kind !== "signature" || annotation.page !== page.index) {
+      continue;
+    }
+    const control = buildStampControl(annotation, geometry, viewport);
+    bindStampDelete(control, annotation, (id) => {
+      if (viewer.model) {
+        viewer.model = removeAnnotation(viewer.model, id);
+        void rerender(viewer);
+      }
+    });
+    page.overlay.appendChild(control);
+  }
+}
+
+/**
+ * Arm the page so an empty-overlay click creates a text box (text tool) or
+ * places the pending signature (sign tool). Clicks on existing controls are left
+ * to those controls (edit/move/resize/delete).
+ */
+function armCreateTools(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): void {
   page.overlay.addEventListener("pointerdown", (event) => {
-    // Only empty-overlay clicks create a box; clicks on existing controls edit.
-    if (!viewer.textTool || !viewer.model || event.target !== page.overlay) {
+    if (!viewer.model || event.target !== page.overlay) {
       return;
     }
     const rect = page.overlay.getBoundingClientRect();
     const click = screenPoint(event.clientX - rect.left, event.clientY - rect.top);
-    viewer.model = createTextBoxAt(viewer.model, click, geometry, { scale: viewer.scale });
-    viewer.focusAnnotationId =
-      viewer.model.annotations[viewer.model.annotations.length - 1]?.id ?? null;
-    setTextTool(viewer, false); // one box per activation
+    const viewport = { scale: viewer.scale };
+
+    if (viewer.textTool) {
+      viewer.model = createTextBoxAt(viewer.model, click, geometry, viewport);
+      viewer.focusAnnotationId =
+        viewer.model.annotations[viewer.model.annotations.length - 1]?.id ?? null;
+      setTextTool(viewer, false); // one box per activation
+    } else if (viewer.pendingStamp) {
+      viewer.model = createSignatureStampAt(
+        viewer.model,
+        click,
+        geometry,
+        viewport,
+        viewer.pendingStamp,
+      );
+      setStampTool(viewer, null); // one placement per signature
+    } else {
+      return;
+    }
     void rerender(viewer);
   });
 }
@@ -162,7 +207,8 @@ async function rerender(viewer: Viewer): Promise<void> {
     }
     placeFormControls(viewer, page, geometry);
     placeTextBoxes(viewer, page, geometry);
-    armTextTool(viewer, page, geometry);
+    placeStamps(viewer, page, geometry);
+    armCreateTools(viewer, page, geometry);
   }
 }
 
@@ -200,6 +246,57 @@ function setTextTool(viewer: Viewer, active: boolean): void {
   viewer.textTool = active;
   viewer.mount.classList.toggle("tool-text", active);
   viewer.textToolButton?.setAttribute("aria-pressed", String(active));
+  if (active) {
+    setStampTool(viewer, null); // tools are mutually exclusive
+  }
+}
+
+/** Arm or disarm signature placement; a non-null image means a click places it. */
+function setStampTool(viewer: Viewer, image: StampImage | null): void {
+  viewer.pendingStamp = image;
+  viewer.mount.classList.toggle("tool-stamp", image !== null);
+}
+
+/**
+ * Open the signature dialog: a fresh pad to draw on, with clear/cancel/use. On
+ * "use" the drawn PNG is captured and signature placement is armed, so the next
+ * page click drops the stamp (createSignatureStampAt) at that point.
+ */
+function openSignatureDialog(viewer: Viewer): void {
+  const dialog = document.querySelector<HTMLDialogElement>("#signature-dialog");
+  const host = document.querySelector<HTMLElement>("#signature-pad-host");
+  if (!dialog || !host) {
+    return;
+  }
+  const pad = createSignaturePad(SIGNATURE_PAD.width, SIGNATURE_PAD.height);
+  host.replaceChildren(pad.element);
+  bindSignatureDialog(viewer, dialog, pad);
+  dialog.showModal();
+}
+
+/** Wire the dialog's clear/cancel/use actions to a freshly mounted pad. */
+function bindSignatureDialog(viewer: Viewer, dialog: HTMLDialogElement, pad: SignaturePad): void {
+  const action = (id: string, run: () => void): void => {
+    const button = dialog.querySelector<HTMLButtonElement>(id);
+    if (button) {
+      button.onclick = run;
+    }
+  };
+  action("#signature-clear", () => pad.clear());
+  action("#signature-cancel", () => dialog.close());
+  action("#signature-use", () => {
+    if (pad.isEmpty()) {
+      return;
+    }
+    setTextTool(viewer, false); // tools are mutually exclusive
+    const aspect = SIGNATURE_PAD.height / SIGNATURE_PAD.width;
+    setStampTool(viewer, {
+      pngBytes: pad.exportPng(),
+      width: DEFAULT_STAMP_WIDTH,
+      height: DEFAULT_STAMP_WIDTH * aspect,
+    });
+    dialog.close();
+  });
 }
 
 /** Project the model to bytes, supplying the font only when text must be drawn. */
@@ -275,6 +372,7 @@ window.addEventListener("DOMContentLoaded", () => {
     path: null,
     scale: 1.25,
     textTool: false,
+    pendingStamp: null,
     focusAnnotationId: null,
   };
 
@@ -300,6 +398,10 @@ window.addEventListener("DOMContentLoaded", () => {
 
   viewer.textToolButton?.addEventListener("click", () => {
     setTextTool(viewer, !viewer.textTool);
+  });
+
+  document.querySelector<HTMLButtonElement>("#sign-tool")?.addEventListener("click", () => {
+    openSignatureDialog(viewer);
   });
 
   // Warn before leaving with unsaved changes.

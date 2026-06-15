@@ -3,6 +3,15 @@
 // Drawing strokes onto a transparent canvas keeps the background clear, so the
 // stamp composites cleanly over the page on save (m4-5).
 
+/** Encode PNG bytes as a `data:image/png;base64,...` URL for an <img> src. */
+export function pngBytesToDataUrl(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return `data:image/png;base64,${btoa(binary)}`;
+}
+
 /** Decode a `data:...;base64,<payload>` URL to raw bytes. */
 export function dataUrlToBytes(dataUrl: string): Uint8Array {
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);

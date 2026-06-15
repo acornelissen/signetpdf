@@ -221,6 +221,130 @@ h1 {
   border-color: #396cd8;
 }
 
+/* Placed signature stamp: a positioned image with the same chrome as text. */
+.overlay .stamp {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed #2e7d32;
+}
+
+.overlay .stamp-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.overlay .stamp-grip {
+  position: absolute;
+  top: -14px;
+  left: -1px;
+  width: 28px;
+  height: 14px;
+  border: 1px solid #2e7d32;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: #2e7d32;
+  cursor: move;
+}
+
+.overlay .stamp-delete {
+  position: absolute;
+  top: -14px;
+  right: -1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 14px;
+  padding: 0;
+  border: 1px solid #b00020;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: #b00020;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.overlay .stamp-resize {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  border: 1px solid #2e7d32;
+  border-radius: 2px;
+  background: #fff;
+  cursor: nwse-resize;
+}
+
+.overlay .stamp-delete:focus-visible,
+.overlay .stamp-resize:focus-visible {
+  outline: 2px solid #396cd8;
+  outline-offset: 1px;
+}
+
+/* While a signature is armed, the page reads as a place-to-click target. */
+.viewer.tool-stamp .overlay {
+  cursor: crosshair;
+}
+
+/* Signature dialog. */
+.signature-dialog {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 1.25rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.signature-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.signature-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+.signature-pad-host .signature-pad {
+  display: block;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  background: #fff;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.signature-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.signature-actions button {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  cursor: pointer;
+  background: #fff;
+}
+
+.signature-actions #signature-use {
+  background: #2e7d32;
+  color: #fff;
+  border-color: #2e7d32;
+}
+
+.signature-actions button:focus-visible {
+  outline: 2px solid #396cd8;
+  outline-offset: 2px;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;
