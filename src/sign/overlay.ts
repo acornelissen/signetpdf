@@ -35,6 +35,11 @@ export function buildStampControl(
   const container = document.createElement("div");
   container.className = "stamp";
   container.dataset.annotationId = stamp.id;
+  // Keyboard-selectable with an accessible name, so it can be focused and removed
+  // without a mouse (the image carries no interactive affordance of its own).
+  container.tabIndex = 0;
+  container.setAttribute("role", "group");
+  container.setAttribute("aria-label", "Signature annotation");
   position(
     container,
     annotationScreenRect(stamp.origin, stamp.width, stamp.height, page, viewport),
@@ -79,6 +84,13 @@ export function bindStampDelete(
 ): void {
   const button = container.querySelector<HTMLButtonElement>(".stamp-delete");
   button?.addEventListener("click", () => onDelete(stamp.id));
+  // Delete/Backspace removes the focused stamp (there is no text field to guard).
+  container.addEventListener("keydown", (event) => {
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      onDelete(stamp.id);
+    }
+  });
 }
 
 /** Wire the move grip so dragging it repositions the stamp (origin in user space). */

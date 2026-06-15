@@ -132,6 +132,12 @@ h1 {
   background: rgba(57, 108, 216, 0.06);
 }
 
+/* Visible focus indicator on every form control (WCAG 2.2 AA). */
+.overlay .field:focus-visible {
+  outline: 2px solid #2557b3;
+  outline-offset: 1px;
+}
+
 /* Editable free-text annotation: a container holding a drag grip and an inner
    textarea. Dashed accent border while editing; it draws solid black on save. */
 .overlay .text-box {
@@ -221,9 +227,10 @@ h1 {
 }
 
 .toolbar button[aria-pressed="true"] {
-  background: #396cd8;
+  /* Darker blue so white label text meets WCAG 2.2 AA (>= 4.5:1). */
+  background: #2557b3;
   color: #fff;
-  border-color: #396cd8;
+  border-color: #2557b3;
 }
 
 /* Placed signature stamp: a positioned image with the same chrome as text. */
@@ -231,6 +238,11 @@ h1 {
   position: absolute;
   box-sizing: border-box;
   border: 1px dashed #2e7d32;
+}
+
+.overlay .stamp:focus-visible {
+  outline: 2px solid #2557b3;
+  outline-offset: 2px;
 }
 
 .overlay .stamp-image {
@@ -344,9 +356,10 @@ h1 {
 }
 
 .signature-actions #signature-use {
-  background: #2e7d32;
+  /* Darker green so white label text meets WCAG 2.2 AA (>= 4.5:1). */
+  background: #1b5e20;
   color: #fff;
-  border-color: #2e7d32;
+  border-color: #1b5e20;
 }
 
 .signature-actions button:focus-visible {

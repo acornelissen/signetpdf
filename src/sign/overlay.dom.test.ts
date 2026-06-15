@@ -29,6 +29,13 @@ describe("buildStampControl (DOM)", () => {
     expect(container.style.width).toMatch(/px$/);
     expect(img?.getAttribute("src")).toMatch(/^data:image\/png;base64,/);
   });
+
+  it("is keyboard-focusable with an accessible group role and name", () => {
+    const container = buildStampControl(stamp(), page, viewport);
+    expect(container.getAttribute("tabindex")).toBe("0");
+    expect(container.getAttribute("role")).toBe("group");
+    expect(container.getAttribute("aria-label")).toBe("Signature annotation");
+  });
 });
 
 function pointer(type: string, clientX: number, clientY: number): MouseEvent {
@@ -83,5 +90,16 @@ describe("stamp delete", () => {
     container.querySelector<HTMLButtonElement>(".stamp-delete")?.click();
 
     expect(deleted).toEqual(["keep-me"]);
+  });
+
+  it("deletes via the Delete key when the stamp is focused", () => {
+    const original = stamp({ id: "by-key" });
+    const container = buildStampControl(original, page, viewport);
+    const deleted: string[] = [];
+    bindStampDelete(container, original, (id) => deleted.push(id));
+
+    container.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true }));
+
+    expect(deleted).toEqual(["by-key"]);
   });
 });
