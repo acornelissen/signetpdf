@@ -5,23 +5,37 @@
 // and the dirty flag; failures surface in a status line.
 import "./pdf/worker";
 import fixtureUrl from "../fixtures/two-page.pdf?url";
+import fontUrl from "./assets/fonts/NotoSans-Regular.ttf?url";
 import { invoke } from "@tauri-apps/api/core";
 import type { PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import {
   createModel,
   markSaved,
   setFieldValue,
+  updateAnnotation,
   withPages,
   type DocumentModel,
+  type PageGeometry,
 } from "./model/document";
+import { screenPoint } from "./model/geometry";
+import { createTextBoxAt } from "./annotations/text";
+import { bindTextBoxControl, buildTextBoxControl } from "./annotations/overlay";
 import { listFormFields, type FormField } from "./forms/fields";
 import { applyFieldValue, bindFieldControl, buildFieldControl } from "./forms/overlay";
 import { hasXfa } from "./forms/xfa";
 import { loadPdfDocument } from "./pdf/document";
 import { capturePageGeometry } from "./pdf/geometry";
-import { renderAllPages } from "./pdf/render";
-import { saveModel } from "./save/save";
+import { renderAllPages, type RenderedPage } from "./pdf/render";
+import { saveModel, type SaveOptions } from "./save/save";
 import { clampScale, fitToWidthScale, ZOOM_STEP } from "./pdf/zoom";
+
+// The Unicode text font is a bundled asset fetched from 'self' (CSP-safe) and
+// cached: it is only needed when the model has text annotations to draw on save.
+let fontBytesCache: Uint8Array | null = null;
+async function loadFontBytes(): Promise<Uint8Array> {
+  fontBytesCache ??= new Uint8Array(await (await fetch(fontUrl)).arrayBuffer());
+  return fontBytesCache;
+}
 
 interface OpenedPdf {
   path: string;
@@ -32,17 +46,83 @@ interface Viewer {
   mount: HTMLElement;
   status: HTMLElement | null;
   zoomLabel: HTMLElement | null;
+  textToolButton: HTMLButtonElement | null;
   doc: PDFDocumentProxy | null;
   model: DocumentModel | null;
   fields: FormField[];
   path: string | null;
   scale: number;
+  // When the text tool is armed, clicking a page creates a text box.
+  textTool: boolean;
+  // Id of a just-created box to focus after the next re-render.
+  focusAnnotationId: string | null;
 }
 
 function setStatus(viewer: Viewer, message: string): void {
   if (viewer.status) {
     viewer.status.textContent = message;
   }
+}
+
+/** Place the AcroForm controls for one page, bound back to the model. */
+function placeFormControls(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): void {
+  const viewport = { scale: viewer.scale };
+  for (const field of viewer.fields) {
+    if (field.page !== page.index) {
+      continue;
+    }
+    const control = buildFieldControl(field, geometry, viewport);
+    if (!control) {
+      continue;
+    }
+    // Show the user's edit if there is one, otherwise the PDF's existing value.
+    const edited = viewer.model?.fieldValues.find((f) => f.fieldName === field.name)?.value;
+    applyFieldValue(control, field.kind, edited ?? field.value);
+    bindFieldControl(control, field, (name, value) => {
+      if (viewer.model) {
+        viewer.model = setFieldValue(viewer.model, name, value);
+      }
+    });
+    page.overlay.appendChild(control);
+  }
+}
+
+/** Place the editable text-box controls for one page, bound back to the model. */
+function placeTextBoxes(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): void {
+  const viewport = { scale: viewer.scale };
+  for (const annotation of viewer.model?.annotations ?? []) {
+    if (annotation.kind !== "text" || annotation.page !== page.index) {
+      continue;
+    }
+    const control = buildTextBoxControl(annotation, geometry, viewport);
+    bindTextBoxControl(control, annotation, (updated) => {
+      if (viewer.model) {
+        viewer.model = updateAnnotation(viewer.model, updated);
+      }
+    });
+    page.overlay.appendChild(control);
+    if (annotation.id === viewer.focusAnnotationId) {
+      viewer.focusAnnotationId = null;
+      control.focus();
+    }
+  }
+}
+
+/** Arm the page so a click creates a text box when the text tool is active. */
+function armTextTool(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): void {
+  page.overlay.addEventListener("pointerdown", (event) => {
+    // Only empty-overlay clicks create a box; clicks on existing controls edit.
+    if (!viewer.textTool || !viewer.model || event.target !== page.overlay) {
+      return;
+    }
+    const rect = page.overlay.getBoundingClientRect();
+    const click = screenPoint(event.clientX - rect.left, event.clientY - rect.top);
+    viewer.model = createTextBoxAt(viewer.model, click, geometry, { scale: viewer.scale });
+    viewer.focusAnnotationId =
+      viewer.model.annotations[viewer.model.annotations.length - 1]?.id ?? null;
+    setTextTool(viewer, false); // one box per activation
+    void rerender(viewer);
+  });
 }
 
 async function rerender(viewer: Viewer): Promise<void> {
@@ -52,32 +132,15 @@ async function rerender(viewer: Viewer): Promise<void> {
   if (!viewer.doc || !viewer.model) {
     return;
   }
-  const viewport = { scale: viewer.scale };
   const rendered = await renderAllPages(viewer.doc, viewer.mount, viewer.scale);
-  // Re-place form controls over each freshly rendered page.
   for (const page of rendered) {
     const geometry = viewer.model.pages[page.index];
     if (!geometry) {
       continue;
     }
-    for (const field of viewer.fields) {
-      if (field.page !== page.index) {
-        continue;
-      }
-      const control = buildFieldControl(field, geometry, viewport);
-      if (!control) {
-        continue;
-      }
-      // Show the user's edit if there is one, otherwise the PDF's existing value.
-      const edited = viewer.model.fieldValues.find((f) => f.fieldName === field.name)?.value;
-      applyFieldValue(control, field.kind, edited ?? field.value);
-      bindFieldControl(control, field, (name, value) => {
-        if (viewer.model) {
-          viewer.model = setFieldValue(viewer.model, name, value);
-        }
-      });
-      page.overlay.appendChild(control);
-    }
+    placeFormControls(viewer, page, geometry);
+    placeTextBoxes(viewer, page, geometry);
+    armTextTool(viewer, page, geometry);
   }
 }
 
@@ -110,6 +173,20 @@ function mayDiscard(viewer: Viewer): boolean {
   return !viewer.model?.dirty || window.confirm("Discard unsaved changes?");
 }
 
+/** Arm or disarm the text tool and reflect it on the toolbar and cursor. */
+function setTextTool(viewer: Viewer, active: boolean): void {
+  viewer.textTool = active;
+  viewer.mount.classList.toggle("tool-text", active);
+  viewer.textToolButton?.setAttribute("aria-pressed", String(active));
+}
+
+/** Project the model to bytes, supplying the font only when text must be drawn. */
+async function projectBytes(model: DocumentModel): Promise<Uint8Array> {
+  const needsFont = model.annotations.some((a) => a.kind === "text");
+  const options: SaveOptions = needsFont ? { fontBytes: await loadFontBytes() } : {};
+  return saveModel(model, options);
+}
+
 async function openUserPdf(viewer: Viewer): Promise<void> {
   if (!mayDiscard(viewer)) {
     return;
@@ -134,7 +211,7 @@ async function save(viewer: Viewer): Promise<void> {
     await saveAs(viewer);
     return;
   }
-  const bytes = await saveModel(viewer.model);
+  const bytes = await projectBytes(viewer.model);
   await invoke("save_pdf", { path: viewer.path, bytes: Array.from(bytes) });
   viewer.model = markSaved(viewer.model);
   setStatus(viewer, "Saved.");
@@ -144,7 +221,7 @@ async function saveAs(viewer: Viewer): Promise<void> {
   if (!viewer.model) {
     return;
   }
-  const bytes = await saveModel(viewer.model);
+  const bytes = await projectBytes(viewer.model);
   const path = await invoke<string | null>("save_pdf_as", { bytes: Array.from(bytes) });
   if (!path) {
     return; // user cancelled the dialog
@@ -169,11 +246,14 @@ window.addEventListener("DOMContentLoaded", () => {
     mount,
     status: document.querySelector<HTMLElement>("#status"),
     zoomLabel: document.querySelector<HTMLElement>("#zoom-level"),
+    textToolButton: document.querySelector<HTMLButtonElement>("#text-tool"),
     doc: null,
     model: null,
     fields: [],
     path: null,
     scale: 1.25,
+    textTool: false,
+    focusAnnotationId: null,
   };
 
   const run = (action: () => Promise<void>, what: string): void => {
@@ -195,6 +275,10 @@ window.addEventListener("DOMContentLoaded", () => {
   on("#zoom-in", () => setScale(viewer, viewer.scale * ZOOM_STEP), "zoom");
   on("#zoom-out", () => setScale(viewer, viewer.scale / ZOOM_STEP), "zoom");
   on("#zoom-fit", () => fitWidth(viewer), "fit to width");
+
+  viewer.textToolButton?.addEventListener("click", () => {
+    setTextTool(viewer, !viewer.textTool);
+  });
 
   // Warn before leaving with unsaved changes.
   window.addEventListener("beforeunload", (event) => {

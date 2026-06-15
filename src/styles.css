@@ -127,6 +127,37 @@ h1 {
   background: rgba(57, 108, 216, 0.06);
 }
 
+/* Editable free-text annotation. Black text over the white page, dashed accent
+   border so the box is visible while editing; it draws solid black on save. */
+.overlay .text-box {
+  position: absolute;
+  margin: 0;
+  padding: 0 2px;
+  border: 1px dashed #396cd8;
+  background: rgba(57, 108, 216, 0.04);
+  color: #0f0f0f;
+  font-family: inherit;
+  line-height: 1.1;
+  resize: none;
+  overflow: hidden;
+}
+
+.overlay .text-box:focus-visible {
+  outline: 2px solid #396cd8;
+  outline-offset: 1px;
+}
+
+/* While the text tool is armed, the page reads as a place-to-click target. */
+.viewer.tool-text .overlay {
+  cursor: crosshair;
+}
+
+.toolbar button[aria-pressed="true"] {
+  background: #396cd8;
+  color: #fff;
+  border-color: #396cd8;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;
