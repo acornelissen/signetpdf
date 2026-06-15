@@ -15,3 +15,52 @@ export function loadPdfDocument(bytes: Uint8Array): Promise<PDFDocumentProxy> {
   // CSP (no 'unsafe-eval').
   return getDocument({ data: bytes.slice() }).promise;
 }
+
+/** The PDF is encrypted and needs a password we do not have yet. */
+export class PasswordRequiredError extends Error {
+  constructor() {
+    super("This PDF is password-protected.");
+    this.name = "PasswordRequiredError";
+  }
+}
+
+/** A password was supplied but it was wrong. */
+export class WrongPasswordError extends Error {
+  constructor() {
+    super("That password was incorrect.");
+    this.name = "WrongPasswordError";
+  }
+}
+
+// pdf.js raises a PasswordException with code 1 (need password) or 2 (incorrect).
+const INCORRECT_PASSWORD = 2;
+
+function isPasswordException(error: unknown): error is { name: string; code: number } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { name?: unknown }).name === "PasswordException"
+  );
+}
+
+/**
+ * Open a PDF, transparently handling encryption. A file with an empty user
+ * password opens with no prompt. A password-protected file rejects with
+ * PasswordRequiredError (no/unknown password) or WrongPasswordError (a supplied
+ * password was wrong), so the caller can prompt and retry.
+ */
+export async function openPdfDocument(
+  bytes: Uint8Array,
+  password?: string,
+): Promise<PDFDocumentProxy> {
+  try {
+    return await getDocument({ data: bytes.slice(), password }).promise;
+  } catch (error) {
+    if (isPasswordException(error)) {
+      throw error.code === INCORRECT_PASSWORD
+        ? new WrongPasswordError()
+        : new PasswordRequiredError();
+    }
+    throw error;
+  }
+}

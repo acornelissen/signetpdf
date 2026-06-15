@@ -24,6 +24,29 @@ export interface SaveOptions {
   readonly flatten?: boolean;
 }
 
+/**
+ * Saving an encrypted PDF is refused: pdf-lib has no decryption support, so it
+ * can neither preserve the encryption nor produce a valid decrypted copy. We
+ * refuse rather than emit a broken or silently-unencrypted file (see m1-12).
+ */
+export class EncryptedSaveError extends Error {
+  constructor() {
+    super(
+      "SignetPDF can't save changes to an encrypted PDF yet. Remove the password (e.g. print to PDF) and reopen to edit.",
+    );
+    this.name = "EncryptedSaveError";
+  }
+}
+
+/**
+ * Whether a PDF is encrypted. Used to refuse saving encrypted documents, since
+ * pdf-lib cannot rewrite their content.
+ */
+export async function isEncryptedPdf(bytes: Uint8Array): Promise<boolean> {
+  const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+  return doc.isEncrypted;
+}
+
 /** Select a radio option, accepting either the option name or its index. */
 function selectRadio(group: PDFRadioGroup, value: string): void {
   const options = group.getOptions();
@@ -108,7 +131,12 @@ export async function saveModel(
   model: DocumentModel,
   options: SaveOptions = {},
 ): Promise<Uint8Array> {
-  const doc = await PDFDocument.load(model.sourceBytes);
+  // pdf-lib cannot decrypt, so an encrypted source can be neither preserved nor
+  // safely rewritten; refuse before touching its (still-encrypted) content.
+  const doc = await PDFDocument.load(model.sourceBytes, { ignoreEncryption: true });
+  if (doc.isEncrypted) {
+    throw new EncryptedSaveError();
+  }
   const pages = doc.getPages();
 
   if (model.fieldValues.length > 0 || options.flatten) {

@@ -48,10 +48,10 @@ import {
 import { listFormFields, type FormField } from "./forms/fields";
 import { applyFieldValue, bindFieldControl, buildFieldControl } from "./forms/overlay";
 import { hasXfa } from "./forms/xfa";
-import { loadPdfDocument } from "./pdf/document";
+import { openPdfDocument, PasswordRequiredError, WrongPasswordError } from "./pdf/document";
 import { capturePageGeometry } from "./pdf/geometry";
 import { renderAllPages, type RenderedPage } from "./pdf/render";
-import { saveModel, type SaveOptions } from "./save/save";
+import { isEncryptedPdf, saveModel, type SaveOptions } from "./save/save";
 import { clampScale, fitToWidthScale, ZOOM_STEP } from "./pdf/zoom";
 
 // The Unicode text font is a bundled asset fetched from 'self' (CSP-safe) and
@@ -85,6 +85,8 @@ interface Viewer {
   focusAnnotationId: string | null;
   // Undo/redo stack of model snapshots; present mirrors `model`.
   history: History | null;
+  // True when the open document is encrypted; saving is disabled for it.
+  encrypted: boolean;
 }
 
 /** Apply a model edit and record it for undo. The model is the present snapshot. */
@@ -240,15 +242,23 @@ async function rerender(viewer: Viewer): Promise<void> {
   updateHistoryButtons(viewer);
 }
 
-async function setDocument(viewer: Viewer, bytes: Uint8Array, path: string | null): Promise<void> {
-  const doc = await loadPdfDocument(bytes);
+async function setDocument(
+  viewer: Viewer,
+  doc: PDFDocumentProxy,
+  bytes: Uint8Array,
+  path: string | null,
+): Promise<void> {
   const pages = await capturePageGeometry(doc);
   viewer.doc = doc;
   viewer.model = withPages(createModel(bytes), pages);
   viewer.history = createHistory(viewer.model); // fresh history per document
   viewer.fields = await listFormFields(doc);
   viewer.path = path;
+  viewer.encrypted = await isEncryptedPdf(bytes);
   await rerender(viewer);
+  if (viewer.encrypted) {
+    setStatus(viewer, "This PDF is encrypted — you can view and fill it, but saving is disabled.");
+  }
 }
 
 /** Reflect undo/redo availability on the toolbar buttons. */
@@ -403,7 +413,7 @@ async function projectBytes(
  * dirty state and history intact).
  */
 async function exportFlattened(viewer: Viewer): Promise<void> {
-  if (!viewer.model) {
+  if (!viewer.model || blockedByEncryption(viewer)) {
     return;
   }
   const bytes = await projectBytes(viewer.model, { flatten: true });
@@ -427,11 +437,55 @@ async function openUserPdf(viewer: Viewer): Promise<void> {
     setStatus(viewer, "This PDF uses an XFA form, which SignetPDF can't edit. It was not opened.");
     return;
   }
-  await setDocument(viewer, bytes, opened.path);
+  const doc = await openWithPassword(bytes);
+  if (!doc) {
+    return; // cancelled at the password prompt
+  }
+  await setDocument(viewer, doc, bytes, opened.path);
+}
+
+/**
+ * Open a PDF, prompting for a password if it is protected (retrying until the
+ * user cancels). Returns null on cancel. Empty-password encryption opens with
+ * no prompt.
+ */
+async function openWithPassword(bytes: Uint8Array): Promise<PDFDocumentProxy | null> {
+  let password: string | undefined;
+  for (;;) {
+    try {
+      return await openPdfDocument(bytes, password);
+    } catch (error) {
+      if (error instanceof PasswordRequiredError || error instanceof WrongPasswordError) {
+        const prompt =
+          error instanceof WrongPasswordError
+            ? "Incorrect password. Try again:"
+            : "This PDF is password-protected. Enter its password:";
+        const entered = window.prompt(prompt);
+        if (entered === null) {
+          return null; // user cancelled
+        }
+        password = entered;
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
+/** True (with a status message) when saving is blocked because the doc is encrypted. */
+function blockedByEncryption(viewer: Viewer): boolean {
+  if (viewer.encrypted) {
+    setStatus(
+      viewer,
+      "Saving is disabled for encrypted PDFs. Remove the password and reopen to edit.",
+    );
+    return true;
+  }
+  return false;
 }
 
 async function save(viewer: Viewer): Promise<void> {
-  if (!viewer.model) {
+  if (!viewer.model || blockedByEncryption(viewer)) {
     return;
   }
   if (!viewer.path) {
@@ -445,7 +499,7 @@ async function save(viewer: Viewer): Promise<void> {
 }
 
 async function saveAs(viewer: Viewer): Promise<void> {
-  if (!viewer.model) {
+  if (!viewer.model || blockedByEncryption(viewer)) {
     return;
   }
   const bytes = await projectBytes(viewer.model);
@@ -460,7 +514,8 @@ async function saveAs(viewer: Viewer): Promise<void> {
 
 async function showBundledFixture(viewer: Viewer): Promise<void> {
   const bytes = new Uint8Array(await (await fetch(fixtureUrl)).arrayBuffer());
-  await setDocument(viewer, bytes, null);
+  const doc = await openPdfDocument(bytes);
+  await setDocument(viewer, doc, bytes, null);
 }
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -483,6 +538,7 @@ window.addEventListener("DOMContentLoaded", () => {
     pendingStamp: null,
     focusAnnotationId: null,
     history: null,
+    encrypted: false,
   };
 
   const run = (action: () => Promise<void>, what: string): void => {

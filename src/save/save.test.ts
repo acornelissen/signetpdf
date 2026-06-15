@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { addAnnotation, createModel, setFieldValue } from "../model/document";
 import { userSpacePoint } from "../model/geometry";
 import { loadPdfDocument } from "../pdf/document";
-import { saveModel } from "./save";
+import { EncryptedSaveError, isEncryptedPdf, saveModel } from "./save";
 
 // A 1x1 transparent PNG; drawImage sets the displayed box, so pixel size is moot.
 const PNG_1x1 =
@@ -248,6 +248,17 @@ describe("saveModel empty round-trip", () => {
     const saved = await saveModel(model);
 
     expect((await fieldNames(saved)).length).toBeGreaterThan(0); // still editable
+  });
+
+  it("refuses to save an encrypted PDF rather than emit a broken or stripped file", async () => {
+    await expect(saveModel(createModel(fixture("encrypted-empty.pdf")))).rejects.toBeInstanceOf(
+      EncryptedSaveError,
+    );
+  });
+
+  it("detects whether a PDF is encrypted", async () => {
+    expect(await isEncryptedPdf(fixture("encrypted-empty.pdf"))).toBe(true);
+    expect(await isEncryptedPdf(fixture("two-page.pdf"))).toBe(false);
   });
 
   it("returns fresh bytes without touching the source", async () => {
