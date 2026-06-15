@@ -117,6 +117,37 @@ describe("saveModel empty round-trip", () => {
     expect(drawn?.transform[5]).toBeCloseTo(700, 0);
   });
 
+  it("draws each text box on its own page across a multi-page document", async () => {
+    let model = createModel(fixture("two-page.pdf"));
+    model = addAnnotation(model, {
+      kind: "text",
+      page: 0,
+      origin: userSpacePoint(72, 700),
+      width: 200,
+      height: 24,
+      text: "FirstPageNote",
+      fontSize: 12,
+    });
+    model = addAnnotation(model, {
+      kind: "text",
+      page: 1,
+      origin: userSpacePoint(72, 700),
+      width: 200,
+      height: 24,
+      text: "SecondPageNote",
+      fontSize: 12,
+    });
+
+    const saved = await saveModel(model, { fontBytes: fontBytes() });
+    const page1 = (await textItems(saved, 1)).map((i) => i.str).join("");
+    const page2 = (await textItems(saved, 2)).map((i) => i.str).join("");
+
+    expect(page1).toContain("FirstPageNote");
+    expect(page1).not.toContain("SecondPageNote");
+    expect(page2).toContain("SecondPageNote");
+    expect(page2).not.toContain("FirstPageNote");
+  });
+
   it("returns fresh bytes without touching the source", async () => {
     const original = fixture("two-page.pdf");
     const model = createModel(original);
