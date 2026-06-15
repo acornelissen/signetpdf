@@ -50,4 +50,8 @@ unnotarized (Gatekeeper warning) and Windows builds are unsigned (SmartScreen wa
 
 ## License
 
-[Apache-2.0](LICENSE), copyright The SignetPDF contributors.
+[Apache-2.0 with the Commons Clause](LICENSE), copyright The SignetPDF
+contributors. The Commons Clause adds one restriction on top of Apache-2.0: you
+may not sell the software (or a product/service whose value derives substantially
+from it). All other Apache-2.0 rights — use, modify, and redistribute for
+non-commercial purposes — are unchanged.

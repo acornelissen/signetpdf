@@ -20,7 +20,7 @@ The work plan lives in **beads**. The system of record is the local Dolt databas
 - **Shell:** Tauri 2 (Rust backend in `/src-tauri`).
 - **Frontend:** Vite + **TypeScript**. No UI framework — the DOM is driven directly. Model and seam types are real TS interfaces/types, checked by `tsc`.
 - **PDF read/render:** PDF.js (`pdfjs-dist`). **PDF write:** pdf-lib. These are two different libraries with two different jobs; keep them on their respective sides of the seam (see below).
-- **Tests:** Vitest, headless. **Types:** `tsc --noEmit` in CI. **Lint:** ESLint + Prettier. **License:** Apache-2.0.
+- **Tests:** Vitest, headless. **Types:** `tsc --noEmit` in CI. **Lint:** ESLint + Prettier. **License:** Apache-2.0 with the Commons Clause (non-commercial; the software may not be sold).
 
 Once scaffolded (M0), expect:
 
