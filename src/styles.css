@@ -2,12 +2,59 @@
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 1.5;
-  color: #0f0f0f;
-  background-color: #f6f6f6;
+  color: var(--text);
+  background-color: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Neutral surfaces */
+  --bg: #eef0f3;
+  --surface: #ffffff;
+  --surface-muted: #f4f5f7;
+  --border: #d9dce1;
+  --border-strong: #b9bec7;
+
+  /* Text */
+  --text: #1a1c20;
+  --text-muted: #5b616b;
+
+  /* Brand + semantics (AA: >= 4.5:1 against white for text/icon use) */
+  --accent: #2f6bd8;
+  --accent-strong: #2557b3;
+  --accent-soft: rgba(47, 107, 216, 0.08);
+  --success: #1b7a3d;
+  --success-strong: #15622f;
+  --danger: #c0182b;
+  --danger-strong: #99121f;
+  --on-accent: #ffffff;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* Spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  /* Elevation */
+  --shadow-1: 0 1px 3px rgba(16, 18, 22, 0.12);
+  --shadow-2: 0 4px 14px rgba(16, 18, 22, 0.16);
+  --shadow-dock: 0 8px 30px rgba(16, 18, 22, 0.22), 0 2px 6px rgba(16, 18, 22, 0.12);
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-med: 200ms;
+
+  /* Min click/touch target */
+  --hit: 40px;
 }
 
 * {
@@ -16,79 +63,399 @@
 
 body {
   margin: 0;
+  min-height: 100vh;
+  background-color: var(--bg);
 }
 
-.app {
-  margin: 0 auto;
-  max-width: 60rem;
-  padding: 2rem 1.5rem;
+/* Visually hidden but available to assistive tech. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
-h1 {
-  margin: 0;
-  font-size: 1.5rem;
-}
+/* ---- Shared buttons ------------------------------------------------------ */
 
-.toolbar {
-  display: flex;
+.btn {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.toolbar-actions,
-.zoom {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.zoom #zoom-level {
-  min-width: 3.5rem;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-.toolbar button {
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  border-radius: 6px;
-  padding: 0.5rem 1rem;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--hit);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
   font: inherit;
   cursor: pointer;
-  background: #fff;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
-.toolbar button:hover {
-  border-color: #396cd8;
+.btn:hover {
+  background: var(--surface-muted);
+  border-color: var(--border-strong);
 }
 
-.toolbar button:focus-visible {
-  outline: 2px solid #396cd8;
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.toolbar button:disabled {
-  opacity: 0.5;
+.btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-.status {
-  margin: 0.75rem 0 0;
-  color: #b00020;
-  min-height: 1.25rem;
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 
-.status:empty {
-  display: none;
+.btn-primary:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
 }
 
-.viewer {
-  margin-top: 1.5rem;
+.btn-success {
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--on-accent);
+}
+
+.btn-success:hover {
+  background: var(--success-strong);
+  border-color: var(--success-strong);
+}
+
+.btn-ghost {
+  background: transparent;
+}
+
+.btn-ghost:hover {
+  background: var(--surface-muted);
+}
+
+/* Square icon-only button used in the dock. */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: var(--hit);
+  height: var(--hit);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.btn-icon:hover {
+  background: var(--surface-muted);
+}
+
+.btn-icon:active {
+  background: var(--accent-soft);
+}
+
+.btn-icon:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-icon:disabled:hover {
+  background: transparent;
+}
+
+.btn-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Armed/toggled tool (Text, Sign) and the pressed state. */
+.btn-icon[aria-pressed="true"],
+.btn-icon[data-armed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Unsaved-changes dot on the Save button. */
+.btn-icon[data-dirty="true"]::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* ---- App layout ---------------------------------------------------------- */
+
+.app {
+  min-height: 100vh;
+}
+
+/* ---- Floating bottom dock ------------------------------------------------ */
+
+.dock {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-5);
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: calc(100vw - 2 * var(--space-4));
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-dock);
+}
+
+.dock-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Thin divider between groups. */
+.dock-group + .dock-group {
+  margin-left: var(--space-1);
+  padding-left: calc(var(--space-1) + var(--space-1));
+  border-left: 1px solid var(--border);
+}
+
+.dock .zoom-level {
+  min-width: 3.25rem;
+  padding: 0 var(--space-1);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+/* ---- Tooltips ------------------------------------------------------------ */
+
+.btn-icon[data-tip]:hover::before,
+.btn-icon[data-tip]:focus-visible::before {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--text);
+  color: var(--surface);
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--shadow-1);
+  z-index: 40;
+}
+
+/* ---- Floating toasts ----------------------------------------------------- */
+
+.toasts {
+  position: fixed;
+  top: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: min(90vw, 32rem);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  pointer-events: auto;
+}
+
+.toast-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.toast-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.toast-message {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.toast-dismiss:hover {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.toast-dismiss:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.toast[data-variant="success"] {
+  border-left-color: var(--success);
+}
+
+.toast[data-variant="success"] .toast-icon {
+  color: var(--success);
+}
+
+.toast[data-variant="error"] {
+  border-left-color: var(--danger);
+}
+
+.toast[data-variant="error"] .toast-icon {
+  color: var(--danger);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation: toast-in var(--dur-med) var(--ease);
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* ---- Empty state --------------------------------------------------------- */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: 100vh;
+  padding: var(--space-5);
+  text-align: center;
+}
+
+.empty-state[hidden] {
+  display: none;
+}
+
+.empty-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-1);
+  color: var(--accent);
+}
+
+.empty-mark svg {
+  width: 44px;
+  height: 44px;
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.empty-subtitle {
+  margin: 0;
+  max-width: 28rem;
+  color: var(--text-muted);
+}
+
+.empty-state .btn {
+  margin-top: var(--space-2);
+}
+
+/* ---- Viewer + pages ------------------------------------------------------ */
+
+.viewer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-4);
+  /* Clear the floating dock so the last page can scroll past it. */
+  padding-bottom: calc(var(--hit) + 3 * var(--space-5));
+}
+
+.viewer[hidden] {
+  display: none;
 }
 
 /* The container is sized to the page up front (virtualized rendering), so it
@@ -96,9 +463,11 @@ h1 {
 .page-container {
   position: relative;
   line-height: 0;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
 }
 
 .page-container .page {
@@ -119,24 +488,24 @@ h1 {
 }
 
 .overlay .field-text {
-  border: 1px solid #396cd8;
-  background: rgba(57, 108, 216, 0.06);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
   padding: 0 2px;
 }
 
 .overlay .field-toggle {
-  accent-color: #396cd8;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
 .overlay .field-choice {
-  border: 1px solid #396cd8;
-  background: rgba(57, 108, 216, 0.06);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
 }
 
 /* Visible focus indicator on every form control (WCAG 2.2 AA). */
 .overlay .field:focus-visible {
-  outline: 2px solid #2557b3;
+  outline: 2px solid var(--accent-strong);
   outline-offset: 1px;
 }
 
@@ -145,8 +514,8 @@ h1 {
 .overlay .text-box {
   position: absolute;
   box-sizing: border-box;
-  border: 1px dashed #396cd8;
-  background: rgba(57, 108, 216, 0.04);
+  border: 1px dashed var(--accent);
+  background: var(--accent-soft);
 }
 
 /* Drag grip floating just above the box; the only move target, so dragging
@@ -157,10 +526,10 @@ h1 {
   left: -1px;
   width: 28px;
   height: 14px;
-  border: 1px solid #396cd8;
+  border: 1px solid var(--accent);
   border-bottom: none;
   border-radius: 4px 4px 0 0;
-  background: #396cd8;
+  background: var(--accent);
   cursor: move;
 }
 
@@ -172,7 +541,7 @@ h1 {
   padding: 0 2px;
   border: 0;
   background: transparent;
-  color: #0f0f0f;
+  color: var(--text);
   font-family: inherit;
   line-height: 1.1;
   resize: none;
@@ -180,7 +549,7 @@ h1 {
 }
 
 .overlay .text-box-input:focus-visible {
-  outline: 2px solid #396cd8;
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -195,18 +564,18 @@ h1 {
   width: 16px;
   height: 14px;
   padding: 0;
-  border: 1px solid #b00020;
+  border: 1px solid var(--danger);
   border-bottom: none;
   border-radius: 4px 4px 0 0;
-  background: #b00020;
-  color: #fff;
+  background: var(--danger);
+  color: var(--on-accent);
   font-size: 12px;
   line-height: 1;
   cursor: pointer;
 }
 
 .overlay .text-box-delete:focus-visible {
-  outline: 2px solid #396cd8;
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -217,9 +586,9 @@ h1 {
   bottom: -5px;
   width: 10px;
   height: 10px;
-  border: 1px solid #396cd8;
+  border: 1px solid var(--accent);
   border-radius: 2px;
-  background: #fff;
+  background: var(--surface);
   cursor: nwse-resize;
 }
 
@@ -228,22 +597,15 @@ h1 {
   cursor: crosshair;
 }
 
-.toolbar button[aria-pressed="true"] {
-  /* Darker blue so white label text meets WCAG 2.2 AA (>= 4.5:1). */
-  background: #2557b3;
-  color: #fff;
-  border-color: #2557b3;
-}
-
 /* Placed signature stamp: a positioned image with the same chrome as text. */
 .overlay .stamp {
   position: absolute;
   box-sizing: border-box;
-  border: 1px dashed #2e7d32;
+  border: 1px dashed var(--success);
 }
 
 .overlay .stamp:focus-visible {
-  outline: 2px solid #2557b3;
+  outline: 2px solid var(--accent-strong);
   outline-offset: 2px;
 }
 
@@ -261,10 +623,10 @@ h1 {
   left: -1px;
   width: 28px;
   height: 14px;
-  border: 1px solid #2e7d32;
+  border: 1px solid var(--success);
   border-bottom: none;
   border-radius: 4px 4px 0 0;
-  background: #2e7d32;
+  background: var(--success);
   cursor: move;
 }
 
@@ -278,11 +640,11 @@ h1 {
   width: 16px;
   height: 14px;
   padding: 0;
-  border: 1px solid #b00020;
+  border: 1px solid var(--danger);
   border-bottom: none;
   border-radius: 4px 4px 0 0;
-  background: #b00020;
-  color: #fff;
+  background: var(--danger);
+  color: var(--on-accent);
   font-size: 12px;
   line-height: 1;
   cursor: pointer;
@@ -294,15 +656,15 @@ h1 {
   bottom: -5px;
   width: 10px;
   height: 10px;
-  border: 1px solid #2e7d32;
+  border: 1px solid var(--success);
   border-radius: 2px;
-  background: #fff;
+  background: var(--surface);
   cursor: nwse-resize;
 }
 
 .overlay .stamp-delete:focus-visible,
 .overlay .stamp-resize:focus-visible {
-  outline: 2px solid #396cd8;
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -311,130 +673,73 @@ h1 {
   cursor: crosshair;
 }
 
-/* Password dialog. */
+/* ---- Dialogs ------------------------------------------------------------- */
+
+.password-dialog,
+.signature-dialog {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-dock);
+  background: var(--surface);
+  color: var(--text);
+}
+
 .password-dialog {
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
-  padding: 1.25rem;
   min-width: 20rem;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
 }
 
-.password-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.4);
+.password-dialog::backdrop,
+.signature-dialog::backdrop {
+  background: rgba(16, 18, 22, 0.45);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
 }
 
-.password-title {
-  margin: 0 0 0.5rem;
+.password-title,
+.signature-title {
+  margin: 0 0 var(--space-3);
   font-size: 1.1rem;
 }
 
 .password-message {
-  margin: 0 0 0.75rem;
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
 }
 
 .password-input {
   width: 100%;
   box-sizing: border-box;
-  padding: 0.5rem;
+  padding: var(--space-2);
   font: inherit;
-  border: 1px solid rgba(0, 0, 0, 0.3);
-  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  color: var(--text);
 }
 
 .password-input:focus-visible {
-  outline: 2px solid #2557b3;
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
-.password-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.password-actions button {
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  border-radius: 6px;
-  padding: 0.5rem 1rem;
-  font: inherit;
-  cursor: pointer;
-  background: #fff;
-}
-
-.password-actions #password-ok {
-  background: #2557b3;
-  color: #fff;
-  border-color: #2557b3;
-}
-
-.password-actions button:focus-visible {
-  outline: 2px solid #2557b3;
-  outline-offset: 2px;
-}
-
-/* Signature dialog. */
-.signature-dialog {
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
-  padding: 1.25rem;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
-}
-
-.signature-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.4);
-}
-
-.signature-title {
-  margin: 0 0 0.75rem;
-  font-size: 1.1rem;
-}
-
-.signature-pad-host .signature-pad {
-  display: block;
-  border: 1px solid rgba(0, 0, 0, 0.3);
-  border-radius: 4px;
-  background: #fff;
-  touch-action: none;
-  cursor: crosshair;
-}
-
+.password-actions,
 .signature-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .signature-actions #signature-import {
   margin-right: auto; /* push the import action to the left */
 }
 
-.signature-actions button {
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  border-radius: 6px;
-  padding: 0.5rem 1rem;
-  font: inherit;
-  cursor: pointer;
-  background: #fff;
-}
-
-.signature-actions #signature-use {
-  /* Darker green so white label text meets WCAG 2.2 AA (>= 4.5:1). */
-  background: #1b5e20;
-  color: #fff;
-  border-color: #1b5e20;
-}
-
-.signature-actions button:focus-visible {
-  outline: 2px solid #396cd8;
-  outline-offset: 2px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
+.signature-pad-host .signature-pad {
+  display: block;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  touch-action: none;
+  cursor: crosshair;
 }

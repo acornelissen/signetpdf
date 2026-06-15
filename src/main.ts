@@ -4,7 +4,6 @@
 // save_pdf / save_pdf_as). The DocumentModel is the source of truth for saving
 // and the dirty flag; failures surface in a status line.
 import "./pdf/worker";
-import fixtureUrl from "../fixtures/two-page.pdf?url";
 import fontUrl from "./assets/fonts/NotoSans-Regular.ttf?url";
 import { invoke } from "@tauri-apps/api/core";
 import type { PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
@@ -32,6 +31,9 @@ import {
   type History,
 } from "./model/history";
 import { detectPlatform, matchShortcut } from "./app/shortcuts";
+import { buildDock } from "./app/dock";
+import { icon } from "./app/icons";
+import { createToasts, type Toasts, type ToastVariant } from "./app/toast";
 import { createTextBoxAt } from "./annotations/text";
 import { createSignatureStampAt, type StampImage } from "./sign/stamp";
 import { bindStampDelete, bindStampDrag, bindStampScale, buildStampControl } from "./sign/overlay";
@@ -76,7 +78,12 @@ interface OpenedPdf {
 
 interface Viewer {
   mount: HTMLElement;
-  status: HTMLElement | null;
+  // Floating toast stack for status/errors; null until the DOM is ready.
+  toasts: Toasts | null;
+  // Chrome that toggles with document presence: the empty-state screen and the
+  // floating dock are hidden until a document is open.
+  emptyState: HTMLElement | null;
+  dock: HTMLElement | null;
   zoomLabel: HTMLElement | null;
   textToolButton: HTMLButtonElement | null;
   doc: PDFDocumentProxy | null;
@@ -108,10 +115,26 @@ function applyEdit(viewer: Viewer, next: DocumentModel): void {
 const SIGNATURE_PAD = { width: 440, height: 180 };
 const DEFAULT_STAMP_WIDTH = 200; // user-space points
 
-function setStatus(viewer: Viewer, message: string): void {
-  if (viewer.status) {
-    viewer.status.textContent = message;
+/** Surface a message as a floating toast. Errors are sticky; the rest fade. */
+function notify(viewer: Viewer, message: string, variant: ToastVariant = "info"): void {
+  viewer.toasts?.notify(message, variant);
+}
+
+/** Show the empty-state screen or the document chrome based on whether a doc is open. */
+function showDocumentChrome(viewer: Viewer, hasDocument: boolean): void {
+  viewer.mount.hidden = !hasDocument;
+  if (viewer.emptyState) {
+    viewer.emptyState.hidden = hasDocument;
   }
+  if (viewer.dock) {
+    viewer.dock.hidden = !hasDocument;
+  }
+}
+
+/** Reflect the model's dirty flag as a dot badge on the Save button. */
+function updateSaveDirty(viewer: Viewer): void {
+  const save = document.querySelector<HTMLButtonElement>("#save");
+  save?.setAttribute("data-dirty", String(viewer.model?.dirty ?? false));
 }
 
 /** Place the AcroForm controls for one page, bound back to the model. */
@@ -313,6 +336,7 @@ async function rerender(viewer: Viewer): Promise<void> {
   viewer.observer = observer;
 
   updateHistoryButtons(viewer);
+  updateSaveDirty(viewer);
 }
 
 async function setDocument(
@@ -329,8 +353,13 @@ async function setDocument(
   viewer.path = path;
   viewer.encrypted = await isEncryptedPdf(bytes);
   await rerender(viewer);
+  showDocumentChrome(viewer, true);
   if (viewer.encrypted) {
-    setStatus(viewer, "This PDF is encrypted — you can view and fill it, but saving is disabled.");
+    notify(
+      viewer,
+      "This PDF is encrypted — you can view and fill it, but saving is disabled.",
+      "info",
+    );
   }
 }
 
@@ -389,6 +418,9 @@ function setTextTool(viewer: Viewer, active: boolean): void {
 function setStampTool(viewer: Viewer, image: StampImage | null): void {
   viewer.pendingStamp = image;
   viewer.mount.classList.toggle("tool-stamp", image !== null);
+  document
+    .querySelector<HTMLButtonElement>("#sign-tool")
+    ?.setAttribute("data-armed", String(image !== null));
 }
 
 /**
@@ -424,7 +456,7 @@ async function importSignature(viewer: Viewer, dialog: HTMLDialogElement): Promi
     setStampTool(viewer, image);
     dialog.close();
   } catch (error) {
-    setStatus(viewer, `Could not import that image: ${String(error)}`);
+    notify(viewer, `Could not import that image: ${String(error)}`, "error");
   }
 }
 
@@ -494,7 +526,7 @@ async function exportFlattened(viewer: Viewer): Promise<void> {
   if (!path) {
     return; // user cancelled
   }
-  setStatus(viewer, "Exported a flattened copy.");
+  notify(viewer, "Exported a flattened copy.", "success");
 }
 
 async function openUserPdf(viewer: Viewer): Promise<void> {
@@ -507,7 +539,11 @@ async function openUserPdf(viewer: Viewer): Promise<void> {
   }
   const bytes = new Uint8Array(opened.bytes);
   if (await hasXfa(bytes)) {
-    setStatus(viewer, "This PDF uses an XFA form, which SignetPDF can't edit. It was not opened.");
+    notify(
+      viewer,
+      "This PDF uses an XFA form, which SignetPDF can't edit. It was not opened.",
+      "error",
+    );
     return;
   }
   const doc = await openWithPassword(
@@ -552,9 +588,10 @@ function askPasswordDialog(incorrect: boolean): Promise<string | null> {
 /** True (with a status message) when saving is blocked because the doc is encrypted. */
 function blockedByEncryption(viewer: Viewer): boolean {
   if (viewer.encrypted) {
-    setStatus(
+    notify(
       viewer,
       "Saving is disabled for encrypted PDFs. Remove the password and reopen to edit.",
+      "error",
     );
     return true;
   }
@@ -572,7 +609,8 @@ async function save(viewer: Viewer): Promise<void> {
   const bytes = await projectBytes(viewer.model);
   await invoke("save_pdf", { path: viewer.path, bytes: Array.from(bytes) });
   markViewerSaved(viewer);
-  setStatus(viewer, "Saved.");
+  updateSaveDirty(viewer);
+  notify(viewer, "Saved.", "success");
 }
 
 async function saveAs(viewer: Viewer): Promise<void> {
@@ -586,13 +624,8 @@ async function saveAs(viewer: Viewer): Promise<void> {
   }
   viewer.path = path;
   markViewerSaved(viewer);
-  setStatus(viewer, "Saved.");
-}
-
-async function showBundledFixture(viewer: Viewer): Promise<void> {
-  const bytes = new Uint8Array(await (await fetch(fixtureUrl)).arrayBuffer());
-  const doc = await openPdfDocument(bytes);
-  await setDocument(viewer, doc, bytes, null);
+  updateSaveDirty(viewer);
+  notify(viewer, "Saved.", "success");
 }
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -601,9 +634,19 @@ window.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
+  // Build the floating dock before reading its controls, then mount it so it
+  // floats above the document (and the empty-state screen) on the bottom edge.
+  const platform = detectPlatform(navigator.userAgent);
+  const dock = buildDock(platform);
+  document.body.append(dock);
+
+  const toastHost = document.querySelector<HTMLElement>("#toasts");
+
   const viewer: Viewer = {
     mount,
-    status: document.querySelector<HTMLElement>("#status"),
+    toasts: toastHost ? createToasts(toastHost) : null,
+    emptyState: document.querySelector<HTMLElement>("#empty-state"),
+    dock,
     zoomLabel: document.querySelector<HTMLElement>("#zoom-level"),
     textToolButton: document.querySelector<HTMLButtonElement>("#text-tool"),
     doc: null,
@@ -619,10 +662,17 @@ window.addEventListener("DOMContentLoaded", () => {
     observer: null,
   };
 
+  // No document yet: show the empty-state screen, hide the dock and viewer.
+  const emptyMark = document.querySelector<HTMLElement>("#empty-mark");
+  if (emptyMark) {
+    emptyMark.innerHTML = icon("document");
+  }
+  showDocumentChrome(viewer, false);
+
   const run = (action: () => Promise<void>, what: string): void => {
-    setStatus(viewer, "");
+    viewer.toasts?.clear();
     action().catch((error: unknown) => {
-      setStatus(viewer, `Could not ${what}: ${String(error)}`);
+      notify(viewer, `Could not ${what}: ${String(error)}`, "error");
     });
   };
 
@@ -650,8 +700,12 @@ window.addEventListener("DOMContentLoaded", () => {
     openSignatureDialog(viewer);
   });
 
+  // The empty-state screen offers the same Open action as the dock.
+  document
+    .querySelector<HTMLButtonElement>("#empty-open")
+    ?.addEventListener("click", () => run(() => openUserPdf(viewer), "open that PDF"));
+
   // Keyboard shortcuts, resolved per platform (Cmd on macOS, Ctrl elsewhere).
-  const platform = detectPlatform(navigator.userAgent);
   window.addEventListener("keydown", (event) => {
     const action = matchShortcut(event, platform);
     if (!action) {
@@ -690,6 +744,4 @@ window.addEventListener("DOMContentLoaded", () => {
       event.returnValue = "";
     }
   });
-
-  run(() => showBundledFixture(viewer), "render the bundled PDF");
 });

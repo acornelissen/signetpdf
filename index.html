@@ -10,28 +10,20 @@
 
   <body>
     <main class="app" id="app">
-      <header class="toolbar">
-        <h1>SignetPDF</h1>
-        <div class="toolbar-actions">
-          <button id="open" type="button">Open PDF…</button>
-          <button id="save" type="button">Save</button>
-          <button id="save-as" type="button">Save As…</button>
-          <button id="export-flat" type="button">Export flat…</button>
-          <button id="text-tool" type="button" aria-pressed="false">Text</button>
-          <button id="sign-tool" type="button">Sign</button>
-          <button id="undo" type="button" disabled>Undo</button>
-          <button id="redo" type="button" disabled>Redo</button>
-          <div class="zoom" role="group" aria-label="Zoom">
-            <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
-            <span id="zoom-level" aria-live="polite">125%</span>
-            <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
-            <button id="zoom-fit" type="button">Fit width</button>
-          </div>
-        </div>
-      </header>
-      <p id="status" class="status" role="alert"></p>
-      <div id="viewer" class="viewer">Loading…</div>
+      <section id="empty-state" class="empty-state" hidden>
+        <div class="empty-mark" id="empty-mark"></div>
+        <h1 class="empty-title">No document open</h1>
+        <p class="empty-subtitle">
+          Open a PDF to fill forms, add text, and sign. Your file stays on this device.
+        </p>
+        <button id="empty-open" class="btn btn-primary" type="button">Open PDF…</button>
+      </section>
+
+      <div id="viewer" class="viewer" hidden></div>
     </main>
+
+    <!-- The dock (nav role=toolbar) is built and mounted by main.ts. -->
+    <div id="toasts"></div>
 
     <dialog id="password-dialog" class="password-dialog" aria-label="Enter PDF password">
       <form method="dialog" class="password-form">
@@ -45,8 +37,8 @@
           autocomplete="off"
         />
         <div class="password-actions">
-          <button value="cancel" type="submit">Cancel</button>
-          <button id="password-ok" value="ok" type="submit">Open</button>
+          <button class="btn btn-ghost" value="cancel" type="submit">Cancel</button>
+          <button id="password-ok" class="btn btn-primary" value="ok" type="submit">Open</button>
         </div>
       </form>
     </dialog>
@@ -55,10 +47,10 @@
       <h2 class="signature-title">Draw your signature</h2>
       <div id="signature-pad-host" class="signature-pad-host"></div>
       <div class="signature-actions">
-        <button id="signature-import" type="button">Import image…</button>
-        <button id="signature-clear" type="button">Clear</button>
-        <button id="signature-cancel" type="button">Cancel</button>
-        <button id="signature-use" type="button">Place signature</button>
+        <button id="signature-import" class="btn btn-ghost" type="button">Import image…</button>
+        <button id="signature-clear" class="btn btn-ghost" type="button">Clear</button>
+        <button id="signature-cancel" class="btn btn-ghost" type="button">Cancel</button>
+        <button id="signature-use" class="btn btn-success" type="button">Place signature</button>
       </div>
     </dialog>
   </body>
