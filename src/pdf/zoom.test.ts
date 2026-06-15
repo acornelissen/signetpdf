@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { clampScale, fitToWidthScale, MAX_SCALE, MIN_SCALE } from "./zoom";
+import {
+  clampScale,
+  fitToWidthScale,
+  MAX_SCALE,
+  MIN_SCALE,
+  stepZoom,
+  zoomByDelta,
+  ZOOM_LEVELS,
+} from "./zoom";
 
 describe("clampScale", () => {
   it("keeps a scale within bounds untouched", () => {
@@ -24,5 +32,46 @@ describe("fitToWidthScale", () => {
 
   it("falls back to 1 for a non-positive page width", () => {
     expect(fitToWidthScale(0, 900)).toBe(1);
+  });
+});
+
+describe("stepZoom", () => {
+  it("steps up and down the preset ladder from a rung", () => {
+    expect(stepZoom(1, "in")).toBe(1.25);
+    expect(stepZoom(1, "out")).toBe(0.75);
+  });
+
+  it("snaps an off-ladder scale to the next rung in each direction", () => {
+    // Fit-width can leave a scale like 1.13 between 1 and 1.25.
+    expect(stepZoom(1.13, "in")).toBe(1.25);
+    expect(stepZoom(1.13, "out")).toBe(1);
+  });
+
+  it("holds at the ends of the ladder", () => {
+    // The ladder ends equal the clamp bounds (asserted below).
+    expect(stepZoom(MIN_SCALE, "out")).toBe(MIN_SCALE);
+    expect(stepZoom(MAX_SCALE, "in")).toBe(MAX_SCALE);
+  });
+
+  it("ladder rungs are the documented scales and within bounds", () => {
+    expect(ZOOM_LEVELS).toContain(1);
+    expect(ZOOM_LEVELS[0]).toBe(MIN_SCALE);
+    expect(ZOOM_LEVELS[ZOOM_LEVELS.length - 1]).toBe(MAX_SCALE);
+  });
+});
+
+describe("zoomByDelta", () => {
+  it("zooms in for a negative delta and out for a positive one", () => {
+    expect(zoomByDelta(1, -100)).toBeGreaterThan(1);
+    expect(zoomByDelta(1, 100)).toBeLessThan(1);
+  });
+
+  it("clamps to the supported range", () => {
+    expect(zoomByDelta(MAX_SCALE, -1000)).toBe(MAX_SCALE);
+    expect(zoomByDelta(MIN_SCALE, 1000)).toBe(MIN_SCALE);
+  });
+
+  it("does nothing for a zero delta", () => {
+    expect(zoomByDelta(1.4, 0)).toBe(1.4);
   });
 });

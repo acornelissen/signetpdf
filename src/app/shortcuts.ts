@@ -2,7 +2,15 @@
 // matcher is pure so it can be tested without the DOM; main.ts maps the result
 // to the corresponding viewer action.
 
-export type ShortcutAction = "open" | "save" | "save-as" | "undo" | "redo" | "zoom-in" | "zoom-out";
+export type ShortcutAction =
+  | "open"
+  | "save"
+  | "save-as"
+  | "undo"
+  | "redo"
+  | "zoom-in"
+  | "zoom-out"
+  | "zoom-reset";
 
 export type Platform = "mac" | "other";
 
@@ -36,6 +44,8 @@ export function matchShortcut(chord: KeyChord, platform: Platform): ShortcutActi
       return "zoom-in";
     case "-":
       return "zoom-out";
+    case "0":
+      return "zoom-reset";
     default:
       return null;
   }

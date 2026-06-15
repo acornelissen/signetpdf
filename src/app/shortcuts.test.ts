@@ -27,6 +27,7 @@ describe("matchShortcut", () => {
     expect(matchShortcut(chord({ key: "=", ctrlKey: true }), "other")).toBe("zoom-in");
     expect(matchShortcut(chord({ key: "+", ctrlKey: true }), "other")).toBe("zoom-in");
     expect(matchShortcut(chord({ key: "-", ctrlKey: true }), "other")).toBe("zoom-out");
+    expect(matchShortcut(chord({ key: "0", ctrlKey: true }), "other")).toBe("zoom-reset");
   });
 
   it("is case-insensitive on the key", () => {

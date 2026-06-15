@@ -61,7 +61,7 @@ import {
   type RenderedPage,
 } from "./pdf/render";
 import { isEncryptedPdf, saveModel, type SaveOptions } from "./save/save";
-import { clampScale, fitToWidthScale, ZOOM_STEP } from "./pdf/zoom";
+import { clampScale, fitToWidthScale, stepZoom, zoomByDelta } from "./pdf/zoom";
 
 // The Unicode text font is a bundled asset fetched from 'self' (CSP-safe) and
 // cached: it is only needed when the model has text annotations to draw on save.
@@ -390,6 +390,25 @@ async function setScale(viewer: Viewer, scale: number): Promise<void> {
   await rerender(viewer);
 }
 
+/**
+ * Continuous (pinch / Ctrl+wheel) zoom that keeps the document point under the
+ * pointer fixed. The pages scroll on the document scroller; after rescaling by
+ * factor `f`, the position under the cursor must end up back at the cursor, so
+ * the new scroll offset is `(scroll + cursor) * f - cursor` on each axis.
+ */
+async function zoomAtPoint(viewer: Viewer, event: WheelEvent): Promise<void> {
+  const next = zoomByDelta(viewer.scale, event.deltaY);
+  if (next === viewer.scale) {
+    return;
+  }
+  const factor = next / viewer.scale;
+  const scroller = document.scrollingElement ?? document.documentElement;
+  const left = (scroller.scrollLeft + event.clientX) * factor - event.clientX;
+  const top = (scroller.scrollTop + event.clientY) * factor - event.clientY;
+  await setScale(viewer, next);
+  scroller.scrollTo({ left, top });
+}
+
 async function fitWidth(viewer: Viewer): Promise<void> {
   if (!viewer.doc) {
     return;
@@ -686,9 +705,29 @@ window.addEventListener("DOMContentLoaded", () => {
   on("#save", () => save(viewer), "save the PDF");
   on("#save-as", () => saveAs(viewer), "save the PDF");
   on("#export-flat", () => exportFlattened(viewer), "export a flattened PDF");
-  on("#zoom-in", () => setScale(viewer, viewer.scale * ZOOM_STEP), "zoom");
-  on("#zoom-out", () => setScale(viewer, viewer.scale / ZOOM_STEP), "zoom");
+  on("#zoom-in", () => setScale(viewer, stepZoom(viewer.scale, "in")), "zoom");
+  on("#zoom-out", () => setScale(viewer, stepZoom(viewer.scale, "out")), "zoom");
   on("#zoom-fit", () => fitWidth(viewer), "fit to width");
+
+  // The zoom readout doubles as a reset-to-100% control.
+  document
+    .querySelector<HTMLElement>("#zoom-level")
+    ?.addEventListener("click", () => run(() => setScale(viewer, 1), "zoom"));
+
+  // Pinch / Ctrl+wheel zoom, anchored at the pointer. macOS trackpad pinch is
+  // delivered to the webview as a wheel event with ctrlKey set, so this one
+  // listener covers both gestures.
+  viewer.mount.addEventListener(
+    "wheel",
+    (event) => {
+      if (!event.ctrlKey || !viewer.doc) {
+        return;
+      }
+      event.preventDefault();
+      run(() => zoomAtPoint(viewer, event), "zoom");
+    },
+    { passive: false },
+  );
   on("#undo", () => stepHistory(viewer, "undo"), "undo");
   on("#redo", () => stepHistory(viewer, "redo"), "redo");
 
@@ -729,10 +768,13 @@ window.addEventListener("DOMContentLoaded", () => {
         run(() => stepHistory(viewer, "redo"), "redo");
         return;
       case "zoom-in":
-        run(() => setScale(viewer, viewer.scale * ZOOM_STEP), "zoom");
+        run(() => setScale(viewer, stepZoom(viewer.scale, "in")), "zoom");
         return;
       case "zoom-out":
-        run(() => setScale(viewer, viewer.scale / ZOOM_STEP), "zoom");
+        run(() => setScale(viewer, stepZoom(viewer.scale, "out")), "zoom");
+        return;
+      case "zoom-reset":
+        run(() => setScale(viewer, 1), "zoom");
         return;
     }
   });
