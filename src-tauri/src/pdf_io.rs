@@ -25,7 +25,7 @@ pub struct GrantedPaths(pub Mutex<HashSet<PathBuf>>);
 
 /// A PDF the user opened: its absolute path (so we can later save in place) and
 /// its raw bytes (handed to pdf.js on the frontend).
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct OpenedPdf {
     pub path: String,
     pub bytes: Vec<u8>,
@@ -38,6 +38,7 @@ pub struct OpenedPdf {
 pub enum ReadError {
     Io(std::io::Error),
     TooLarge { size: u64, max: u64 },
+    Unsupported,
 }
 
 impl fmt::Display for ReadError {
@@ -48,6 +49,7 @@ impl fmt::Display for ReadError {
                 f,
                 "That PDF is too large to open ({size} bytes; limit is {max} bytes)."
             ),
+            ReadError::Unsupported => write!(f, "Only PDF files can be opened."),
         }
     }
 }
@@ -108,6 +110,32 @@ pub fn read_image_file(path: &Path) -> Result<Vec<u8>, ReadError> {
     let metadata = std::fs::metadata(path)?;
     ensure_within_limit(metadata.len(), MAX_IMAGE_BYTES)?;
     Ok(std::fs::read(path)?)
+}
+
+/// True if `path` has a `.pdf` extension (case-insensitive).
+fn has_pdf_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.eq_ignore_ascii_case("pdf"))
+        .unwrap_or(false)
+}
+
+/// Read a PDF that was dropped onto the window. The path comes from the OS
+/// drag-drop event handled in Rust — never from the webview — so this never
+/// exposes an arbitrary-path read to the frontend. The dropped path is granted
+/// for later in-place saves, matching `open_pdf`. Non-PDF drops are refused.
+pub fn read_dropped_pdf(granted: &Mutex<HashSet<PathBuf>>, path: &Path) -> Result<OpenedPdf, ReadError> {
+    if !has_pdf_extension(path) {
+        return Err(ReadError::Unsupported);
+    }
+    let bytes = read_pdf_file(path)?;
+    if let Ok(key) = canonical_key(path) {
+        granted.lock().expect("granted paths lock").insert(key);
+    }
+    Ok(OpenedPdf {
+        path: path.to_string_lossy().into_owned(),
+        bytes,
+    })
 }
 
 /// A canonical, comparable key for a path that works whether or not the file
@@ -272,6 +300,25 @@ mod tests {
     fn reports_an_error_for_a_missing_file() {
         let missing = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/does-not-exist.pdf");
         assert!(read_pdf_file(&missing).is_err());
+    }
+
+    #[test]
+    fn reads_a_dropped_pdf_and_grants_its_path() {
+        let granted = Mutex::new(HashSet::new());
+        let opened = read_dropped_pdf(&granted, &fixture_path()).expect("dropped pdf should read");
+        assert!(opened.bytes.starts_with(b"%PDF-"));
+        // The dropped path is granted so a later in-place Save is permitted.
+        let key = canonical_key(&fixture_path()).unwrap();
+        assert!(granted.lock().unwrap().contains(&key));
+    }
+
+    #[test]
+    fn refuses_a_dropped_non_pdf() {
+        let granted = Mutex::new(HashSet::new());
+        let image = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/signature.png");
+        let err = read_dropped_pdf(&granted, &image);
+        assert!(matches!(err, Err(ReadError::Unsupported)));
+        assert!(granted.lock().unwrap().is_empty(), "a refused drop grants nothing");
     }
 
     #[test]

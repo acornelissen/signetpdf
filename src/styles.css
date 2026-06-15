@@ -219,6 +219,24 @@ body {
   min-height: 100vh;
 }
 
+/* While an OS file drag hovers the window, show a clear drop affordance. */
+body.drag-over::after {
+  content: "Drop a PDF to open it";
+  position: fixed;
+  inset: var(--space-4);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 1.25rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
 /* ---- Floating bottom dock ------------------------------------------------ */
 
 .dock {

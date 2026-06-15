@@ -1,11 +1,12 @@
 // SignetPDF frontend entry point.
-// Configures the pdf.js worker, renders a bundled fixture on startup, and lets
-// the user open a PDF (Rust open_pdf), scroll/zoom it, and save it back (Rust
-// save_pdf / save_pdf_as). The DocumentModel is the source of truth for saving
-// and the dirty flag; failures surface in a status line.
+// Configures the pdf.js worker, shows an empty-state screen until the user opens
+// a PDF (Rust open_pdf, or drag-and-drop), then lets them scroll/zoom it and
+// save it back (Rust save_pdf / save_pdf_as). The DocumentModel is the source of
+// truth for saving and the dirty flag; status and failures surface as toasts.
 import "./pdf/worker";
 import fontUrl from "./assets/fonts/NotoSans-Regular.ttf?url";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import {
   createModel,
@@ -430,6 +431,7 @@ function setTextTool(viewer: Viewer, active: boolean): void {
   viewer.textToolButton?.setAttribute("aria-pressed", String(active));
   if (active) {
     setStampTool(viewer, null); // tools are mutually exclusive
+    notify(viewer, "Click on the page to place a text box. Press Esc to cancel.", "info");
   }
 }
 
@@ -440,6 +442,21 @@ function setStampTool(viewer: Viewer, image: StampImage | null): void {
   document
     .querySelector<HTMLButtonElement>("#sign-tool")
     ?.setAttribute("data-armed", String(image !== null));
+  if (image !== null) {
+    notify(viewer, "Click on the page to place your signature. Press Esc to cancel.", "info");
+  }
+}
+
+/** True while a create tool (text or signature) is armed. */
+function toolArmed(viewer: Viewer): boolean {
+  return viewer.textTool || viewer.pendingStamp !== null;
+}
+
+/** Cancel any armed create tool and clear its hint. */
+function cancelTools(viewer: Viewer): void {
+  setTextTool(viewer, false);
+  setStampTool(viewer, null);
+  viewer.toasts?.clear();
 }
 
 /**
@@ -548,15 +565,12 @@ async function exportFlattened(viewer: Viewer): Promise<void> {
   notify(viewer, "Exported a flattened copy.", "success");
 }
 
-async function openUserPdf(viewer: Viewer): Promise<void> {
-  if (!mayDiscard(viewer)) {
-    return;
-  }
-  const opened = await invoke<OpenedPdf | null>("open_pdf");
-  if (!opened) {
-    return; // user cancelled the dialog
-  }
-  const bytes = new Uint8Array(opened.bytes);
+/**
+ * Open already-read PDF bytes: refuse XFA, prompt for a password if needed, then
+ * make it the current document. Shared by the Open dialog and drag-and-drop, so
+ * both entry points behave identically.
+ */
+async function openBytes(viewer: Viewer, bytes: Uint8Array, path: string | null): Promise<void> {
   if (await hasXfa(bytes)) {
     notify(
       viewer,
@@ -572,7 +586,18 @@ async function openUserPdf(viewer: Viewer): Promise<void> {
   if (!doc) {
     return; // cancelled at the password prompt
   }
-  await setDocument(viewer, doc, bytes, opened.path);
+  await setDocument(viewer, doc, bytes, path);
+}
+
+async function openUserPdf(viewer: Viewer): Promise<void> {
+  if (!mayDiscard(viewer)) {
+    return;
+  }
+  const opened = await invoke<OpenedPdf | null>("open_pdf");
+  if (!opened) {
+    return; // user cancelled the dialog
+  }
+  await openBytes(viewer, new Uint8Array(opened.bytes), opened.path);
 }
 
 /**
@@ -744,8 +769,34 @@ window.addEventListener("DOMContentLoaded", () => {
     .querySelector<HTMLButtonElement>("#empty-open")
     ?.addEventListener("click", () => run(() => openUserPdf(viewer), "open that PDF"));
 
+  // Drag-and-drop: the drop is handled in Rust (read + path grant), which emits
+  // the bytes here. Open through the same pipeline as the dialog.
+  void listen("pdf-drag-over", (event) => {
+    document.body.classList.toggle("drag-over", event.payload === true);
+  });
+  void listen<OpenedPdf>("pdf-dropped", (event) => {
+    document.body.classList.remove("drag-over");
+    if (!mayDiscard(viewer)) {
+      return;
+    }
+    run(
+      () => openBytes(viewer, new Uint8Array(event.payload.bytes), event.payload.path),
+      "open that PDF",
+    );
+  });
+  void listen<string>("pdf-drop-error", (event) => {
+    document.body.classList.remove("drag-over");
+    notify(viewer, event.payload, "error");
+  });
+
   // Keyboard shortcuts, resolved per platform (Cmd on macOS, Ctrl elsewhere).
   window.addEventListener("keydown", (event) => {
+    // Esc cancels an armed create tool before anything else.
+    if (event.key === "Escape" && toolArmed(viewer)) {
+      event.preventDefault();
+      cancelTools(viewer);
+      return;
+    }
     const action = matchShortcut(event, platform);
     if (!action) {
       return;
