@@ -101,6 +101,23 @@ function makeZoomGroup(platform: Platform): HTMLDivElement {
   return group;
 }
 
+/** The page-position readout ("3 / 12"), updated from the viewport on scroll. */
+function makePageGroup(): HTMLDivElement {
+  const group = document.createElement("div");
+  group.className = "dock-group page";
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", "Page");
+
+  const indicator = document.createElement("span");
+  indicator.id = "page-indicator";
+  indicator.className = "page-indicator";
+  indicator.setAttribute("aria-live", "polite");
+  indicator.setAttribute("aria-label", "Page position");
+  indicator.textContent = "– / –";
+  group.append(indicator);
+  return group;
+}
+
 /** Build the dock nav (role=toolbar) with all groups for the given platform. */
 export function buildDock(platform: Platform): HTMLElement {
   const dock = document.createElement("nav");
@@ -111,6 +128,7 @@ export function buildDock(platform: Platform): HTMLElement {
   for (const group of GROUPS) {
     dock.append(makeGroup(group, platform));
   }
+  dock.append(makePageGroup());
   dock.append(makeZoomGroup(platform));
   return dock;
 }

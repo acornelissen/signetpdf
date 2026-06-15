@@ -24,6 +24,7 @@ describe("buildDock", () => {
       "zoom-in",
       "zoom-fit",
       "zoom-level",
+      "page-indicator",
     ]) {
       expect(dock.querySelector(`#${id}`), id).not.toBeNull();
     }

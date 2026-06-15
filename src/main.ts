@@ -54,7 +54,7 @@ import { hasXfa } from "./forms/xfa";
 import { openPdfDocument } from "./pdf/document";
 import { openWithPassword } from "./app/password";
 import { capturePageGeometry } from "./pdf/geometry";
-import { pageDisplaySize } from "./pdf/layout";
+import { mostVisiblePage, pageDisplaySize } from "./pdf/layout";
 import {
   clearPageCanvas,
   createPagePlaceholders,
@@ -104,6 +104,9 @@ interface Viewer {
   encrypted: boolean;
   // Observes page placeholders to render/free pages as they near the viewport.
   observer: IntersectionObserver | null;
+  // Tracks how much of each page is in view, to drive the page indicator.
+  pageObserver: IntersectionObserver | null;
+  pageRatios: Map<number, number>;
 }
 
 /** Apply a model edit and record it for undo. The model is the present snapshot. */
@@ -136,6 +139,27 @@ function showDocumentChrome(viewer: Viewer, hasDocument: boolean): void {
 function updateSaveDirty(viewer: Viewer): void {
   const save = document.querySelector<HTMLButtonElement>("#save");
   save?.setAttribute("data-dirty", String(viewer.model?.dirty ?? false));
+}
+
+/** Show or hide the "Opening…" indicator while a document loads. */
+function showLoading(viewer: Viewer, active: boolean): void {
+  const loading = document.querySelector<HTMLElement>("#loading");
+  if (loading) {
+    loading.hidden = !active;
+  }
+  viewer.mount.setAttribute("aria-busy", String(active));
+}
+
+/** Update the dock's "n / total" readout from the tracked page visibilities. */
+function updatePageIndicator(viewer: Viewer): void {
+  const indicator = document.querySelector<HTMLElement>("#page-indicator");
+  if (!indicator || !viewer.model) {
+    return;
+  }
+  const total = viewer.model.pages.length;
+  const visibilities = [...viewer.pageRatios].map(([index, ratio]) => ({ index, ratio }));
+  const current = mostVisiblePage(visibilities);
+  indicator.textContent = current === null ? `– / ${total}` : `${current + 1} / ${total}`;
 }
 
 /** Place the AcroForm controls for one page, bound back to the model. */
@@ -336,8 +360,29 @@ async function rerender(viewer: Viewer): Promise<void> {
   placeholders.forEach((page) => observer.observe(page.container));
   viewer.observer = observer;
 
+  // A second, margin-free observer tracks the true viewport fraction of each
+  // page to drive the "n / total" indicator (the render observer's 300px margin
+  // would skew the ratios).
+  viewer.pageObserver?.disconnect();
+  viewer.pageRatios = new Map();
+  const pageObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        const page = byContainer.get(entry.target as HTMLElement);
+        if (page) {
+          viewer.pageRatios.set(page.index, entry.intersectionRatio);
+        }
+      }
+      updatePageIndicator(viewer);
+    },
+    { root: null, threshold: [0, 0.25, 0.5, 0.75, 1] },
+  );
+  placeholders.forEach((page) => pageObserver.observe(page.container));
+  viewer.pageObserver = pageObserver;
+
   updateHistoryButtons(viewer);
   updateSaveDirty(viewer);
+  updatePageIndicator(viewer);
 }
 
 async function setDocument(
@@ -586,7 +631,12 @@ async function openBytes(viewer: Viewer, bytes: Uint8Array, path: string | null)
   if (!doc) {
     return; // cancelled at the password prompt
   }
-  await setDocument(viewer, doc, bytes, path);
+  showLoading(viewer, true);
+  try {
+    await setDocument(viewer, doc, bytes, path);
+  } finally {
+    showLoading(viewer, false);
+  }
 }
 
 async function openUserPdf(viewer: Viewer): Promise<void> {
@@ -704,6 +754,8 @@ window.addEventListener("DOMContentLoaded", () => {
     history: null,
     encrypted: false,
     observer: null,
+    pageObserver: null,
+    pageRatios: new Map(),
   };
 
   // No document yet: show the empty-state screen, hide the dock and viewer.

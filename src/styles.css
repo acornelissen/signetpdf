@@ -271,12 +271,62 @@ body.drag-over::after {
   border-left: 1px solid var(--border);
 }
 
-.dock .zoom-level {
+.dock .zoom-level,
+.dock .page-indicator {
   min-width: 3.25rem;
   padding: 0 var(--space-1);
   text-align: center;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
+}
+
+.dock .page-indicator {
+  min-width: 4rem;
+}
+
+/* ---- Loading indicator --------------------------------------------------- */
+
+.loading {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--hit) + 4 * var(--space-5));
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+}
+
+.loading[hidden] {
+  display: none;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: var(--radius-pill);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .spinner {
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 }
 
 /* ---- Tooltips ------------------------------------------------------------ */

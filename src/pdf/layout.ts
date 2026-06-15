@@ -19,3 +19,31 @@ export function pageDisplaySize(page: PageGeometry, scale: number): DisplaySize 
     height: (quarterTurn ? page.width : page.height) * scale,
   };
 }
+
+/** How much of one page is currently inside the viewport (0..1). */
+export interface PageVisibility {
+  readonly index: number;
+  readonly ratio: number;
+}
+
+/**
+ * The page the reader is looking at: the one with the largest visible fraction.
+ * Returns null when nothing is visible. Ties favour the lower page index so the
+ * indicator advances only once the next page is genuinely more prominent.
+ */
+export function mostVisiblePage(visibilities: ReadonlyArray<PageVisibility>): number | null {
+  let best: PageVisibility | null = null;
+  for (const current of visibilities) {
+    if (current.ratio <= 0) {
+      continue;
+    }
+    const better =
+      !best ||
+      current.ratio > best.ratio ||
+      (current.ratio === best.ratio && current.index < best.index);
+    if (better) {
+      best = current;
+    }
+  }
+  return best ? best.index : null;
+}
