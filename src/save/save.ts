@@ -17,6 +17,11 @@ import { embedUnicodeFont } from "./font";
 export interface SaveOptions {
   /** Bytes of the Unicode text font, required only when text boxes are present. */
   readonly fontBytes?: Uint8Array;
+  /**
+   * Bake filled form fields into static page content with no editable layer.
+   * Annotations are already drawn content, so this only affects AcroForm fields.
+   */
+  readonly flatten?: boolean;
 }
 
 /** Select a radio option, accepting either the option name or its index. */
@@ -106,12 +111,17 @@ export async function saveModel(
   const doc = await PDFDocument.load(model.sourceBytes);
   const pages = doc.getPages();
 
-  if (model.fieldValues.length > 0) {
+  if (model.fieldValues.length > 0 || options.flatten) {
     const form = doc.getForm();
     for (const fieldValue of model.fieldValues) {
       applyFieldValue(form, fieldValue);
     }
     form.updateFieldAppearances();
+    if (options.flatten) {
+      // Bake the (now-appeared) field values into page content and drop the
+      // interactive widgets, so the export has no editable AcroForm layer.
+      form.flatten();
+    }
   }
 
   const textBoxes = model.annotations.filter((a): a is TextBox => a.kind === "text");

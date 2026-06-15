@@ -79,6 +79,17 @@ async function textItems(bytes: Uint8Array, pageNumber: number): Promise<PdfText
   return content.items as unknown as PdfTextItem[];
 }
 
+/** All visible text across every page, concatenated. */
+async function allText(bytes: Uint8Array): Promise<string> {
+  const doc = await loadPdfDocument(bytes);
+  let text = "";
+  for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
+    const content = await (await doc.getPage(pageNumber)).getTextContent();
+    text += (content.items as unknown as PdfTextItem[]).map((item) => item.str).join(" ");
+  }
+  return text;
+}
+
 /** Read each field's persisted value from the saved bytes via pdf.js. */
 async function fieldValues(bytes: Uint8Array): Promise<Record<string, string | null>> {
   const doc = await loadPdfDocument(bytes);
@@ -218,6 +229,25 @@ describe("saveModel empty round-trip", () => {
     expect(d).toBeCloseTo(60, 0); // height
     expect(e).toBeCloseTo(100, 0); // origin x
     expect(f).toBeCloseTo(200, 0); // origin y
+  });
+
+  it("flatten bakes field values into content and removes editable fields", async () => {
+    let model = createModel(fixture("acroform.pdf"));
+    model = setFieldValue(model, "text.fullName", "Ada Lovelace");
+
+    const flattened = await saveModel(model, { flatten: true });
+
+    expect(await fieldNames(flattened)).toHaveLength(0); // no editable AcroForm
+    expect(await allText(flattened)).toContain("Ada Lovelace"); // value baked in
+  });
+
+  it("keeps fields editable on a normal (non-flatten) save", async () => {
+    let model = createModel(fixture("acroform.pdf"));
+    model = setFieldValue(model, "text.fullName", "Ada Lovelace");
+
+    const saved = await saveModel(model);
+
+    expect((await fieldNames(saved)).length).toBeGreaterThan(0); // still editable
   });
 
   it("returns fresh bytes without touching the source", async () => {

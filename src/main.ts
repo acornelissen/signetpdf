@@ -384,10 +384,33 @@ function markViewerSaved(viewer: Viewer): void {
 }
 
 /** Project the model to bytes, supplying the font only when text must be drawn. */
-async function projectBytes(model: DocumentModel): Promise<Uint8Array> {
+async function projectBytes(
+  model: DocumentModel,
+  extra: Partial<SaveOptions> = {},
+): Promise<Uint8Array> {
   const needsFont = model.annotations.some((a) => a.kind === "text");
-  const options: SaveOptions = needsFont ? { fontBytes: await loadFontBytes() } : {};
+  const options: SaveOptions = {
+    ...extra,
+    ...(needsFont ? { fontBytes: await loadFontBytes() } : {}),
+  };
   return saveModel(model, options);
+}
+
+/**
+ * Export a flattened copy via Save As: fields are baked into static content with
+ * no editable layer. The working document is left untouched (still editable, its
+ * dirty state and history intact).
+ */
+async function exportFlattened(viewer: Viewer): Promise<void> {
+  if (!viewer.model) {
+    return;
+  }
+  const bytes = await projectBytes(viewer.model, { flatten: true });
+  const path = await invoke<string | null>("save_pdf_as", { bytes: Array.from(bytes) });
+  if (!path) {
+    return; // user cancelled
+  }
+  setStatus(viewer, "Exported a flattened copy.");
 }
 
 async function openUserPdf(viewer: Viewer): Promise<void> {
@@ -477,6 +500,7 @@ window.addEventListener("DOMContentLoaded", () => {
   on("#open", () => openUserPdf(viewer), "open that PDF");
   on("#save", () => save(viewer), "save the PDF");
   on("#save-as", () => saveAs(viewer), "save the PDF");
+  on("#export-flat", () => exportFlattened(viewer), "export a flattened PDF");
   on("#zoom-in", () => setScale(viewer, viewer.scale * ZOOM_STEP), "zoom");
   on("#zoom-out", () => setScale(viewer, viewer.scale / ZOOM_STEP), "zoom");
   on("#zoom-fit", () => fitWidth(viewer), "fit to width");
