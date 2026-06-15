@@ -23,6 +23,8 @@ export interface FormField {
   readonly options?: readonly string[];
   // The "on" value for this checkbox/radio widget (pdf.js export/button value).
   readonly onValue?: string;
+  // The field's current value in the PDF, used to populate the control on load.
+  readonly value?: string | boolean;
 }
 
 // pdf.js getAnnotations() is loosely typed; this is the subset we read.
@@ -36,7 +38,21 @@ interface PdfWidget {
   combo?: boolean;
   exportValue?: string;
   buttonValue?: string;
+  fieldValue?: string | string[] | null;
   options?: Array<{ exportValue?: string; displayValue?: string }>;
+}
+
+/** The field's current value, normalized to how the model/controls represent it. */
+function currentValue(
+  widget: PdfWidget,
+  kind: FieldKind,
+  onValue: string | undefined,
+): string | boolean | undefined {
+  if (kind === "checkbox") {
+    return widget.fieldValue != null && widget.fieldValue === onValue;
+  }
+  const raw = Array.isArray(widget.fieldValue) ? widget.fieldValue[0] : widget.fieldValue;
+  return typeof raw === "string" && raw !== "" ? raw : undefined;
 }
 
 function classify(widget: PdfWidget): FieldKind | null {
@@ -73,6 +89,7 @@ export async function listFormFields(doc: PDFDocumentProxy): Promise<FormField[]
         (option) => option.displayValue ?? option.exportValue ?? "",
       );
       const onValue = widget.buttonValue ?? widget.exportValue;
+      const value = currentValue(widget, kind, onValue);
       fields.push({
         name: widget.fieldName ?? "",
         kind,
@@ -85,6 +102,7 @@ export async function listFormFields(doc: PDFDocumentProxy): Promise<FormField[]
         },
         ...(options ? { options } : {}),
         ...(onValue !== undefined ? { onValue } : {}),
+        ...(value !== undefined ? { value } : {}),
       });
     }
   }

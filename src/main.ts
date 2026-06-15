@@ -68,8 +68,9 @@ async function rerender(viewer: Viewer): Promise<void> {
       if (!control) {
         continue;
       }
-      const current = viewer.model.fieldValues.find((f) => f.fieldName === field.name)?.value;
-      applyFieldValue(control, field.kind, current);
+      // Show the user's edit if there is one, otherwise the PDF's existing value.
+      const edited = viewer.model.fieldValues.find((f) => f.fieldName === field.name)?.value;
+      applyFieldValue(control, field.kind, edited ?? field.value);
       bindFieldControl(control, field, (name, value) => {
         if (viewer.model) {
           viewer.model = setFieldValue(viewer.model, name, value);

@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { createModel, setFieldValue } from "../model/document";
 import { loadPdfDocument } from "../pdf/document";
+import { saveModel } from "../save/save";
 import { listFormFields, type FormField } from "./fields";
 
 function fixture(name: string): Uint8Array {
@@ -50,5 +52,22 @@ describe("listFormFields", () => {
 
   it("returns nothing for a PDF with no forms", async () => {
     expect(await fields("two-page.pdf")).toEqual([]);
+  });
+
+  it("reads back existing field values (what the overlay shows on reopen)", async () => {
+    let model = createModel(fixture("acroform.pdf"));
+    model = setFieldValue(model, "text.fullName", "Boemsie");
+    model = setFieldValue(model, "check.agree", true);
+    model = setFieldValue(model, "radio.color", "1");
+    model = setFieldValue(model, "choice.city", "Tokyo");
+    const reopened = await listFormFields(await loadPdfDocument(await saveModel(model)));
+    const byName = new Map(reopened.map((field) => [field.name, field]));
+
+    expect(byName.get("text.fullName")?.value).toBe("Boemsie");
+    expect(byName.get("check.agree")?.value).toBe(true);
+    expect(byName.get("choice.city")?.value).toBe("Tokyo");
+    // The selected radio widget carries the group's value.
+    expect(reopened.find((f) => f.name === "radio.color" && f.onValue === "1")?.value).toBe("1");
+    expect(reopened.find((f) => f.name === "radio.color" && f.onValue === "0")?.value).toBe("1");
   });
 });
