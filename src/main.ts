@@ -866,31 +866,49 @@ window.addEventListener("DOMContentLoaded", () => {
     .querySelector<HTMLElement>("#zoom-level")
     ?.addEventListener("click", () => run(() => setScale(viewer, 1), "zoom"));
 
-  // Pointer-anchored continuous zoom, coalesced to one re-render per frame so a
-  // fast pinch or scroll cannot outrun the renderer.
-  let pendingZoom: { scale: number; x: number; y: number } | null = null;
-  let zoomScheduled = false;
-  const requestZoom = (scale: number, x: number, y: number): void => {
-    pendingZoom = { scale, x, y };
-    if (zoomScheduled) {
+  // Continuous zoom (pinch / Ctrl+wheel). Re-rasterising every frame can't keep
+  // up — a pdf.js page raster is far slower than a frame — so during a gesture we
+  // only apply a cheap GPU transform to the page column (instant, smooth) and
+  // re-render once, crisply, when the gesture settles. The anchor point that
+  // stays put under the cursor is fixed for the whole session.
+  const zoom = { active: false, base: 1, target: 1, x: 0, y: 0 };
+  let zoomCommitTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const previewZoom = (scale: number): void => {
+    zoom.target = clampScale(scale);
+    viewer.mount.style.transform = `scale(${zoom.target / zoom.base})`;
+    if (viewer.zoomLabel) {
+      viewer.zoomLabel.textContent = `${Math.round(zoom.target * 100)}%`;
+    }
+  };
+
+  const beginZoom = (clientX: number, clientY: number): void => {
+    if (zoom.active) {
       return;
     }
-    zoomScheduled = true;
-    requestAnimationFrame(() => {
-      zoomScheduled = false;
-      const target = pendingZoom;
-      pendingZoom = null;
-      if (target) {
-        zoomTo(viewer, target.scale, target.x, target.y).catch((error: unknown) => {
-          notify(viewer, `Could not zoom: ${String(error)}`, "error");
-        });
-      }
+    zoom.active = true;
+    zoom.base = viewer.scale;
+    zoom.target = viewer.scale;
+    zoom.x = clientX;
+    zoom.y = clientY;
+    const rect = viewer.mount.getBoundingClientRect();
+    viewer.mount.style.transformOrigin = `${clientX - rect.left}px ${clientY - rect.top}px`;
+  };
+
+  const commitZoom = (): void => {
+    if (!zoom.active) {
+      return;
+    }
+    zoom.active = false;
+    viewer.mount.style.transform = "";
+    viewer.mount.style.transformOrigin = "";
+    zoomTo(viewer, zoom.target, zoom.x, zoom.y).catch((error: unknown) => {
+      notify(viewer, `Could not zoom: ${String(error)}`, "error");
     });
   };
 
-  // Two pinch sources: Ctrl+wheel (Chromium webviews on Windows, and a Ctrl-held
-  // mouse wheel) and WebKit gesture events (macOS WKWebView delivers a trackpad
-  // pinch as gesturestart/gesturechange with a cumulative `scale`, not as wheel).
+  // Ctrl+wheel (Chromium webviews, or a Ctrl-held mouse wheel) has no end event,
+  // so commit shortly after the last tick.
   viewer.mount.addEventListener(
     "wheel",
     (event) => {
@@ -898,26 +916,37 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
       event.preventDefault();
-      requestZoom(zoomByDelta(viewer.scale, event.deltaY), event.clientX, event.clientY);
+      beginZoom(event.clientX, event.clientY);
+      previewZoom(zoomByDelta(zoom.target, event.deltaY));
+      clearTimeout(zoomCommitTimer);
+      zoomCommitTimer = setTimeout(commitZoom, 140);
     },
     { passive: false },
   );
 
-  let gestureBaseScale = 0;
+  // WebKit gesture events (macOS WKWebView): a trackpad pinch reports a
+  // cumulative `scale` and ends explicitly with gestureend.
   window.addEventListener("gesturestart", (event) => {
     if (!viewer.doc) {
       return;
     }
     event.preventDefault();
-    gestureBaseScale = viewer.scale;
+    const gesture = event as GestureZoomEvent;
+    beginZoom(gesture.clientX, gesture.clientY);
   });
   window.addEventListener("gesturechange", (event) => {
-    if (!viewer.doc) {
+    if (!viewer.doc || !zoom.active) {
       return;
     }
     event.preventDefault();
-    const gesture = event as GestureZoomEvent;
-    requestZoom(clampScale(gestureBaseScale * gesture.scale), gesture.clientX, gesture.clientY);
+    previewZoom(zoom.base * (event as GestureZoomEvent).scale);
+  });
+  window.addEventListener("gestureend", (event) => {
+    if (!zoom.active) {
+      return;
+    }
+    event.preventDefault();
+    commitZoom();
   });
   on("#undo", () => stepHistory(viewer, "undo"), "undo");
   on("#redo", () => stepHistory(viewer, "redo"), "redo");
