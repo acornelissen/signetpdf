@@ -141,6 +141,69 @@ function updateSaveDirty(viewer: Viewer): void {
   save?.setAttribute("data-dirty", String(viewer.model?.dirty ?? false));
 }
 
+/**
+ * Wire the responsive overflow menu: on a narrow window the Save As and Export
+ * actions collapse into a "More" popover. Menu items activate the matching dock
+ * buttons (still in the DOM, just hidden), so their behaviour stays wired once.
+ */
+function setupOverflowMenu(): void {
+  const moreButton = document.querySelector<HTMLButtonElement>("#dock-more");
+  const menu = document.querySelector<HTMLElement>("#dock-more-menu");
+  const collapsible = ["#save-as", "#export-flat"].map((id) =>
+    document.querySelector<HTMLButtonElement>(id),
+  );
+  if (!moreButton || !menu) {
+    return;
+  }
+
+  const setMenuOpen = (open: boolean): void => {
+    menu.hidden = !open;
+    moreButton.setAttribute("aria-expanded", String(open));
+    if (open) {
+      menu.querySelector<HTMLButtonElement>(".dock-menu-item")?.focus();
+    }
+  };
+
+  moreButton.addEventListener("click", () => setMenuOpen(menu.hidden));
+
+  for (const item of menu.querySelectorAll<HTMLButtonElement>(".dock-menu-item")) {
+    item.addEventListener("click", () => {
+      setMenuOpen(false);
+      document.querySelector<HTMLButtonElement>(`#${item.dataset.action ?? ""}`)?.click();
+    });
+  }
+
+  // Close on Escape (returning focus to the button) and on an outside click.
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !menu.hidden) {
+      setMenuOpen(false);
+      moreButton.focus();
+    }
+  });
+  document.addEventListener("pointerdown", (event) => {
+    const target = event.target as Node;
+    if (!menu.hidden && !menu.contains(target) && target !== moreButton) {
+      setMenuOpen(false);
+    }
+  });
+
+  // Collapse the actions into "More" only when the dock would be cramped.
+  const narrow = window.matchMedia("(max-width: 760px)");
+  const apply = (isNarrow: boolean): void => {
+    for (const button of collapsible) {
+      if (button) {
+        button.hidden = isNarrow;
+      }
+    }
+    moreButton.hidden = !isNarrow;
+    if (!isNarrow) {
+      setMenuOpen(false);
+    }
+  };
+  apply(narrow.matches);
+  narrow.addEventListener("change", (event) => apply(event.matches));
+}
+
 /** Show or hide the "Opening…" indicator while a document loads. */
 function showLoading(viewer: Viewer, active: boolean): void {
   const loading = document.querySelector<HTMLElement>("#loading");
@@ -486,7 +549,7 @@ function setStampTool(viewer: Viewer, image: StampImage | null): void {
   viewer.mount.classList.toggle("tool-stamp", image !== null);
   document
     .querySelector<HTMLButtonElement>("#sign-tool")
-    ?.setAttribute("data-armed", String(image !== null));
+    ?.setAttribute("aria-pressed", String(image !== null));
   if (image !== null) {
     notify(viewer, "Click on the page to place your signature. Press Esc to cancel.", "info");
   }
@@ -820,6 +883,8 @@ window.addEventListener("DOMContentLoaded", () => {
   document
     .querySelector<HTMLButtonElement>("#empty-open")
     ?.addEventListener("click", () => run(() => openUserPdf(viewer), "open that PDF"));
+
+  setupOverflowMenu();
 
   // Drag-and-drop: the drop is handled in Rust (read + path grant), which emits
   // the bytes here. Open through the same pipeline as the dialog.

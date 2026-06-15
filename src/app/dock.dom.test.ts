@@ -46,4 +46,36 @@ describe("buildDock", () => {
       "Save as  ⇧⌘S",
     );
   });
+
+  it("is a single-tab-stop toolbar: one button at tabindex 0", () => {
+    const dock = buildDock("mac");
+    const stops = [...dock.querySelectorAll("button")].filter((b) => b.tabIndex === 0);
+    expect(stops).toHaveLength(1);
+    // The first enabled button (Open) carries the tab stop; disabled ones don't.
+    expect(stops[0]?.id).toBe("open");
+  });
+
+  it("provides a hidden overflow menu mapping items to dock actions", () => {
+    const dock = buildDock("mac");
+    const more = dock.querySelector<HTMLButtonElement>("#dock-more");
+    expect(more?.hidden).toBe(true); // shown only on a narrow window
+    expect(more?.getAttribute("aria-haspopup")).toBe("true");
+    const actions = [...dock.querySelectorAll<HTMLElement>(".dock-menu-item")].map(
+      (item) => item.dataset.action,
+    );
+    expect(actions).toEqual(["save-as", "export-flat"]);
+  });
+
+  it("arrow keys move focus across buttons, skipping disabled ones", () => {
+    const dock = buildDock("mac");
+    document.body.append(dock);
+    const open = dock.querySelector<HTMLButtonElement>("#open")!;
+    open.focus();
+    dock.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    // Next enabled after Open is Save (Save As/Export are enabled too; Save is next).
+    expect(document.activeElement?.id).toBe("save");
+    dock.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+    expect(document.activeElement?.id).toBe("zoom-fit");
+    dock.remove();
+  });
 });
