@@ -77,6 +77,14 @@ interface OpenedPdf {
   bytes: number[];
 }
 
+// WebKit's non-standard pinch gesture event (macOS WKWebView). `scale` is the
+// cumulative pinch factor since the gesture began (1 = unchanged).
+interface GestureZoomEvent extends Event {
+  readonly scale: number;
+  readonly clientX: number;
+  readonly clientY: number;
+}
+
 interface Viewer {
   mount: HTMLElement;
   // Floating toast stack for status/errors; null until the DOM is ready.
@@ -500,20 +508,24 @@ async function setScale(viewer: Viewer, scale: number): Promise<void> {
 }
 
 /**
- * Continuous (pinch / Ctrl+wheel) zoom that keeps the document point under the
- * pointer fixed. The pages scroll on the document scroller; after rescaling by
- * factor `f`, the position under the cursor must end up back at the cursor, so
- * the new scroll offset is `(scroll + cursor) * f - cursor` on each axis.
+ * Continuous (pinch / Ctrl+wheel) zoom to `next`, keeping the document point at
+ * (clientX, clientY) fixed. The pages scroll on the document scroller; after
+ * rescaling by factor `f`, the position under that point must end up back there,
+ * so the new scroll offset is `(scroll + client) * f - client` on each axis.
  */
-async function zoomAtPoint(viewer: Viewer, event: WheelEvent): Promise<void> {
-  const next = zoomByDelta(viewer.scale, event.deltaY);
+async function zoomTo(
+  viewer: Viewer,
+  next: number,
+  clientX: number,
+  clientY: number,
+): Promise<void> {
   if (next === viewer.scale) {
     return;
   }
   const factor = next / viewer.scale;
   const scroller = document.scrollingElement ?? document.documentElement;
-  const left = (scroller.scrollLeft + event.clientX) * factor - event.clientX;
-  const top = (scroller.scrollTop + event.clientY) * factor - event.clientY;
+  const left = (scroller.scrollLeft + clientX) * factor - clientX;
+  const top = (scroller.scrollTop + clientY) * factor - clientY;
   await setScale(viewer, next);
   scroller.scrollTo({ left, top });
 }
@@ -854,9 +866,31 @@ window.addEventListener("DOMContentLoaded", () => {
     .querySelector<HTMLElement>("#zoom-level")
     ?.addEventListener("click", () => run(() => setScale(viewer, 1), "zoom"));
 
-  // Pinch / Ctrl+wheel zoom, anchored at the pointer. macOS trackpad pinch is
-  // delivered to the webview as a wheel event with ctrlKey set, so this one
-  // listener covers both gestures.
+  // Pointer-anchored continuous zoom, coalesced to one re-render per frame so a
+  // fast pinch or scroll cannot outrun the renderer.
+  let pendingZoom: { scale: number; x: number; y: number } | null = null;
+  let zoomScheduled = false;
+  const requestZoom = (scale: number, x: number, y: number): void => {
+    pendingZoom = { scale, x, y };
+    if (zoomScheduled) {
+      return;
+    }
+    zoomScheduled = true;
+    requestAnimationFrame(() => {
+      zoomScheduled = false;
+      const target = pendingZoom;
+      pendingZoom = null;
+      if (target) {
+        zoomTo(viewer, target.scale, target.x, target.y).catch((error: unknown) => {
+          notify(viewer, `Could not zoom: ${String(error)}`, "error");
+        });
+      }
+    });
+  };
+
+  // Two pinch sources: Ctrl+wheel (Chromium webviews on Windows, and a Ctrl-held
+  // mouse wheel) and WebKit gesture events (macOS WKWebView delivers a trackpad
+  // pinch as gesturestart/gesturechange with a cumulative `scale`, not as wheel).
   viewer.mount.addEventListener(
     "wheel",
     (event) => {
@@ -864,10 +898,27 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
       event.preventDefault();
-      run(() => zoomAtPoint(viewer, event), "zoom");
+      requestZoom(zoomByDelta(viewer.scale, event.deltaY), event.clientX, event.clientY);
     },
     { passive: false },
   );
+
+  let gestureBaseScale = 0;
+  window.addEventListener("gesturestart", (event) => {
+    if (!viewer.doc) {
+      return;
+    }
+    event.preventDefault();
+    gestureBaseScale = viewer.scale;
+  });
+  window.addEventListener("gesturechange", (event) => {
+    if (!viewer.doc) {
+      return;
+    }
+    event.preventDefault();
+    const gesture = event as GestureZoomEvent;
+    requestZoom(clampScale(gestureBaseScale * gesture.scale), gesture.clientX, gesture.clientY);
+  });
   on("#undo", () => stepHistory(viewer, "undo"), "undo");
   on("#redo", () => stepHistory(viewer, "redo"), "redo");
 
