@@ -70,16 +70,22 @@ offers Copy, matching the platform convention.
 
 ## Items per context
 
-| Context            | Items                                                        |
-| ------------------ | ------------------------------------------------------------ |
-| selection          | Copy                                                         |
-| annotation (text)  | Edit (focus the box for editing), Delete                     |
-| annotation (sig)   | Delete                                                       |
-| page               | Add text here, Add signature here, Fit width, Reset to 100%  |
+| Context           | Items                                                       |
+| ----------------- | ----------------------------------------------------------- |
+| selection         | Copy                                                        |
+| annotation (text) | Edit (focus the box for editing), Delete                    |
+| annotation (sig)  | Delete                                                      |
+| page              | Add text here, Add signature here, Fit width, Reset to 100% |
 
-Items carry a `disabled` flag for states where the action cannot run (e.g. Fit
-width with no document), though most page/annotation items are only reachable
-when a document is open.
+No `disabled` items are needed: every context that produces items implies its
+precondition (a page/annotation only exists once a document is open, Copy only
+appears with a selection), so the builder never emits an unrunnable item.
+
+Note on text boxes: a text box is mostly its editing `textarea`, which keeps the
+native menu so paste works. The annotation menu (Edit/Delete) therefore surfaces
+when right-clicking the box's non-editable chrome (its grip/border), not the
+textarea. Signature stamps have no input, so right-clicking anywhere on them
+offers Delete.
 
 ## "Add ... here" placement
 
@@ -96,8 +102,7 @@ when a document is open.
 
 - Single floating element appended to the document; only one open at a time
   (opening a new menu closes any existing one).
-- `role="menu"`; each item is a `role="menuitem"` button. Disabled items get
-  `aria-disabled` and are skipped by keyboard navigation.
+- `role="menu"`; each item is a `role="menuitem"` button.
 - On open, focus moves to the first enabled item. Up/Down move between items
   (wrapping), Home/End jump to first/last, Enter or Space activate, Escape
   closes the menu and restores focus to the element that had it before opening.
