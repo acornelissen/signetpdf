@@ -33,7 +33,7 @@ import {
 } from "./model/history";
 import { detectPlatform, matchShortcut } from "./app/shortcuts";
 import { buildDock } from "./app/dock";
-import { icon } from "./app/icons";
+import { icon, type IconName } from "./app/icons";
 import { createToasts, type Toasts, type ToastVariant } from "./app/toast";
 import { createTextBoxAt } from "./annotations/text";
 import { createSignatureStampAt, type StampImage } from "./sign/stamp";
@@ -59,10 +59,12 @@ import {
   clearPageCanvas,
   clearTextLayer,
   createPagePlaceholders,
+  extractPageText,
   renderPageTextLayer,
   renderPageToCanvas,
   type RenderedPage,
 } from "./pdf/render";
+import { findMatches, matchRanges, type SearchMatch } from "./pdf/search";
 import type { TextLayer } from "pdfjs-dist/legacy/build/pdf.mjs";
 import "./pdf/textlayer.css";
 import "./pdf/textlayer.overrides.css"; // must load after textlayer.css to win
@@ -122,6 +124,22 @@ interface Viewer {
   pageRatios: Map<number, number>;
   // Live text layers by page index, kept so they can be cancelled on unmount.
   textLayers: Map<number, TextLayer>;
+  // The current page placeholders, so search can find a page's text layer.
+  pages: RenderedPage[];
+  // Find-in-document state for the current model.
+  search: SearchState;
+}
+
+interface SearchState {
+  query: string;
+  // Per-page text, extracted lazily on the first search of a document.
+  index: string[] | null;
+  matches: SearchMatch[];
+  current: number; // index into matches, -1 when none
+}
+
+function emptySearch(): SearchState {
+  return { query: "", index: null, matches: [], current: -1 };
 }
 
 /** Apply a model edit and record it for undo. The model is the present snapshot. */
@@ -219,6 +237,39 @@ function setupOverflowMenu(): void {
   narrow.addEventListener("change", (event) => apply(event.matches));
 }
 
+/** Wire the find bar: icons, query input, next/prev, and close. */
+function setupSearchBar(
+  viewer: Viewer,
+  run: (action: () => Promise<void>, what: string) => void,
+): void {
+  const setIcon = (id: string, name: IconName): void => {
+    const element = document.querySelector<HTMLElement>(id);
+    if (element) {
+      element.innerHTML = icon(name);
+    }
+  };
+  setIcon("#search-icon", "search");
+  setIcon("#search-prev", "chevron-up");
+  setIcon("#search-next", "chevron-down");
+  setIcon("#search-close", "dismiss");
+
+  const input = document.querySelector<HTMLInputElement>("#search-input");
+  input?.addEventListener("input", () => run(() => runSearch(viewer, input.value), "search"));
+  input?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      stepSearch(viewer, event.shiftKey ? -1 : 1);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation(); // close find rather than cancelling a tool
+      closeSearch(viewer);
+    }
+  });
+  document.querySelector("#search-prev")?.addEventListener("click", () => stepSearch(viewer, -1));
+  document.querySelector("#search-next")?.addEventListener("click", () => stepSearch(viewer, 1));
+  document.querySelector("#search-close")?.addEventListener("click", () => closeSearch(viewer));
+}
+
 /** Show or hide the "Opening…" indicator while a document loads. */
 function showLoading(viewer: Viewer, active: boolean): void {
   const loading = document.querySelector<HTMLElement>("#loading");
@@ -238,6 +289,175 @@ function updatePageIndicator(viewer: Viewer): void {
   const visibilities = [...viewer.pageRatios].map(([index, ratio]) => ({ index, ratio }));
   const current = mostVisiblePage(visibilities);
   indicator.textContent = current === null ? `– / ${total}` : `${current + 1} / ${total}`;
+}
+
+// ---- Find in document -----------------------------------------------------
+
+const HAS_HIGHLIGHTS = typeof CSS !== "undefined" && "highlights" in CSS;
+
+/** The text spans of a rendered page's text layer, with their text. */
+function pageSpans(page: RenderedPage): { spans: HTMLElement[]; texts: string[] } {
+  const spans = [...page.text.querySelectorAll<HTMLElement>("span")];
+  return { spans, texts: spans.map((span) => span.textContent ?? "") };
+}
+
+/** How many matches precede the current one on its own page (its page ordinal). */
+function currentOrdinal(viewer: Viewer, page: number): number {
+  const cur = viewer.search.matches[viewer.search.current];
+  if (!cur || cur.page !== page) {
+    return -1;
+  }
+  return viewer.search.matches.filter((m) => m.page === page && m.start < cur.start).length;
+}
+
+/** Build the per-page text index once for the current document. */
+async function ensureSearchIndex(viewer: Viewer): Promise<string[]> {
+  if (viewer.search.index) {
+    return viewer.search.index;
+  }
+  const doc = viewer.doc;
+  if (!doc) {
+    return [];
+  }
+  const pages: string[] = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    pages.push(await extractPageText(doc, i));
+  }
+  viewer.search.index = pages;
+  return pages;
+}
+
+function updateSearchCount(viewer: Viewer): void {
+  const count = document.querySelector<HTMLElement>("#search-count");
+  if (!count) {
+    return;
+  }
+  const { matches, current, query } = viewer.search;
+  if (query.trim() === "") {
+    count.textContent = "";
+  } else if (matches.length === 0) {
+    count.textContent = "No results";
+  } else {
+    count.textContent = `${current + 1} of ${matches.length}`;
+  }
+}
+
+/** Redraw the match highlights over the live (rendered) pages. */
+function refreshSearchHighlights(viewer: Viewer): void {
+  if (!HAS_HIGHLIGHTS) {
+    return;
+  }
+  CSS.highlights.delete("search-match");
+  CSS.highlights.delete("search-current");
+  const { query, matches } = viewer.search;
+  if (query.trim() === "" || matches.length === 0) {
+    return;
+  }
+  const all = new Highlight();
+  const active = new Highlight();
+  for (const page of viewer.pages) {
+    if (!viewer.textLayers.has(page.index)) {
+      continue; // only rendered pages have spans to range over
+    }
+    const { spans, texts } = pageSpans(page);
+    const ordinal = currentOrdinal(viewer, page.index);
+    matchRanges(texts, query).forEach((item, i) => {
+      const startNode = spans[item.startItem]?.firstChild;
+      const endNode = spans[item.endItem]?.firstChild;
+      if (!startNode || !endNode) {
+        return;
+      }
+      const range = document.createRange();
+      try {
+        range.setStart(startNode, item.startOffset);
+        range.setEnd(endNode, item.endOffset);
+      } catch {
+        return;
+      }
+      (i === ordinal ? active : all).add(range);
+    });
+  }
+  CSS.highlights.set("search-match", all);
+  CSS.highlights.set("search-current", active);
+}
+
+/** Bring the current match into view, scrolling its page in if needed. */
+function scrollToCurrentMatch(viewer: Viewer): void {
+  const cur = viewer.search.matches[viewer.search.current];
+  const page = cur ? viewer.pages[cur.page] : undefined;
+  if (!cur || !page) {
+    return;
+  }
+  let target: Element = page.container;
+  if (viewer.textLayers.has(cur.page)) {
+    const { spans } = pageSpans(page);
+    const ordinal = currentOrdinal(viewer, cur.page);
+    const span =
+      spans[matchRanges(pageSpans(page).texts, viewer.search.query)[ordinal]?.startItem ?? -1];
+    target = span ?? page.container;
+  }
+  target.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+/** Run a query: build the index, find matches, highlight and jump to the first. */
+async function runSearch(viewer: Viewer, query: string): Promise<void> {
+  viewer.search.query = query;
+  if (query.trim() === "") {
+    viewer.search.matches = [];
+    viewer.search.current = -1;
+    updateSearchCount(viewer);
+    refreshSearchHighlights(viewer);
+    return;
+  }
+  // Only the first search of a document pays for extracting the page text.
+  const building = viewer.search.index === null;
+  if (building) {
+    showLoading(viewer, true);
+  }
+  try {
+    viewer.search.matches = findMatches(await ensureSearchIndex(viewer), query);
+  } finally {
+    if (building) {
+      showLoading(viewer, false);
+    }
+  }
+  viewer.search.current = viewer.search.matches.length > 0 ? 0 : -1;
+  updateSearchCount(viewer);
+  refreshSearchHighlights(viewer);
+  scrollToCurrentMatch(viewer);
+}
+
+/** Move to the next/previous match (wrapping). */
+function stepSearch(viewer: Viewer, direction: 1 | -1): void {
+  const total = viewer.search.matches.length;
+  if (total === 0) {
+    return;
+  }
+  viewer.search.current = (viewer.search.current + direction + total) % total;
+  updateSearchCount(viewer);
+  scrollToCurrentMatch(viewer);
+  refreshSearchHighlights(viewer);
+}
+
+function openSearch(viewer: Viewer): void {
+  const bar = document.querySelector<HTMLElement>("#search-bar");
+  const input = document.querySelector<HTMLInputElement>("#search-input");
+  if (!bar || !input || !viewer.doc) {
+    return;
+  }
+  bar.hidden = false;
+  input.focus();
+  input.select();
+}
+
+function closeSearch(viewer: Viewer): void {
+  const bar = document.querySelector<HTMLElement>("#search-bar");
+  if (bar) {
+    bar.hidden = true;
+  }
+  viewer.search = { ...viewer.search, query: "", matches: [], current: -1 };
+  updateSearchCount(viewer);
+  refreshSearchHighlights(viewer);
 }
 
 /** Place the AcroForm controls for one page, bound back to the model. */
@@ -389,6 +609,10 @@ async function mountPage(
     const layer = await renderPageTextLayer(viewer.doc, page.index + 1, page.text, viewer.scale);
     if (live.has(page.index)) {
       viewer.textLayers.set(page.index, layer);
+      // A page that scrolled in may contain search matches to highlight.
+      if (viewer.search.query) {
+        refreshSearchHighlights(viewer);
+      }
     } else {
       clearTextLayer(page.text, layer); // unmounted while building
     }
@@ -430,6 +654,7 @@ async function rerender(viewer: Viewer): Promise<void> {
   const model = viewer.model;
   const sizes = model.pages.map((page) => pageDisplaySize(page, viewer.scale));
   const placeholders = createPagePlaceholders(viewer.mount, sizes);
+  viewer.pages = placeholders;
   const byContainer = new Map(placeholders.map((page) => [page.container, page]));
   const live = new Set<number>();
 
@@ -486,6 +711,7 @@ async function rerender(viewer: Viewer): Promise<void> {
   updateHistoryButtons(viewer);
   updateSaveDirty(viewer);
   updatePageIndicator(viewer);
+  refreshSearchHighlights(viewer);
 }
 
 async function setDocument(
@@ -501,6 +727,8 @@ async function setDocument(
   viewer.fields = await listFormFields(doc);
   viewer.path = path;
   viewer.encrypted = await isEncryptedPdf(bytes);
+  closeSearch(viewer); // a fresh document starts with no active search
+  viewer.search = emptySearch();
   await rerender(viewer);
   showDocumentChrome(viewer, true);
   if (viewer.encrypted) {
@@ -864,6 +1092,8 @@ window.addEventListener("DOMContentLoaded", () => {
     pageObserver: null,
     pageRatios: new Map(),
     textLayers: new Map(),
+    pages: [],
+    search: emptySearch(),
   };
 
   // No document yet: show the empty-state screen, hide the dock and viewer.
@@ -998,6 +1228,7 @@ window.addEventListener("DOMContentLoaded", () => {
     ?.addEventListener("click", () => run(() => openUserPdf(viewer), "open that PDF"));
 
   setupOverflowMenu();
+  setupSearchBar(viewer, run);
 
   // Drag-and-drop: the drop is handled in Rust (read + path grant), which emits
   // the bytes here. Open through the same pipeline as the dialog.
@@ -1025,6 +1256,12 @@ window.addEventListener("DOMContentLoaded", () => {
     if (event.key === "Escape" && toolArmed(viewer)) {
       event.preventDefault();
       cancelTools(viewer);
+      return;
+    }
+    // Cmd/Ctrl+F opens find-in-document.
+    if ((platform === "mac" ? event.metaKey : event.ctrlKey) && event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      openSearch(viewer);
       return;
     }
     const action = matchShortcut(event, platform);

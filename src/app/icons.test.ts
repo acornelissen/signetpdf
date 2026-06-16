@@ -35,6 +35,9 @@ describe("icon", () => {
       "error",
       "dismiss",
       "document",
+      "search",
+      "chevron-up",
+      "chevron-down",
     ];
     for (const name of names) {
       expect(icon(name)).toContain("<svg");

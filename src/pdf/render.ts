@@ -75,6 +75,32 @@ export async function renderPageTextLayer(
   return layer;
 }
 
+/**
+ * Extract a page's text as a single string for searching, in reading order. Read
+ * via getReader (not `for await`, which throws on WebKit builds without
+ * ReadableStream async iteration) and concatenated the same way the text layer
+ * builds its spans, so search offsets line up with the rendered spans.
+ */
+export async function extractPageText(doc: PDFDocumentProxy, pageNumber: number): Promise<string> {
+  const page = await doc.getPage(pageNumber);
+  const reader = page
+    .streamTextContent({ includeMarkedContent: true, disableNormalization: true })
+    .getReader();
+  let text = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+    for (const item of value.items) {
+      if ("str" in item) {
+        text += item.str;
+      }
+    }
+  }
+  return text;
+}
+
 /** Cancel a page's text layer and drop its spans when it scrolls out of view. */
 export function clearTextLayer(container: HTMLElement, layer: TextLayer | undefined): void {
   layer?.cancel();

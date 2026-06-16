@@ -397,6 +397,83 @@ body.drag-over::after {
   z-index: 40;
 }
 
+/* ---- Find bar ------------------------------------------------------------ */
+
+.search-bar {
+  position: fixed;
+  top: var(--space-4);
+  right: var(--space-5);
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-2);
+}
+
+.search-bar[hidden] {
+  display: none;
+}
+
+.search-icon {
+  display: inline-flex;
+  padding-left: var(--space-1);
+  color: var(--text-muted);
+}
+
+.search-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.search-input {
+  width: 14rem;
+  padding: var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
+.search-input:focus-visible {
+  outline: none;
+}
+
+.search-count {
+  min-width: 4.5rem;
+  padding: 0 var(--space-2);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.search-bar .btn-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.search-bar .btn-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Search match highlights drawn over the transparent text layer via the CSS
+   Custom Highlight API (no DOM mutation). */
+::highlight(search-match) {
+  background-color: rgba(255, 200, 0, 0.45);
+}
+
+::highlight(search-current) {
+  background-color: rgba(255, 138, 0, 0.6);
+}
+
 /* ---- Floating toasts ----------------------------------------------------- */
 
 .toasts {
