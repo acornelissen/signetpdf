@@ -18,6 +18,10 @@ describe("createPagePlaceholders", () => {
     // Overlays start empty; canvases are rendered on demand when near the viewport.
     expect(pages[0]?.overlay.childElementCount).toBe(0);
     expect(pages[0]?.canvas.className).toBe("page");
+    // A text layer sits between the canvas and the overlay for selection.
+    expect(pages[0]?.text.className).toBe("textLayer");
+    const children = [...(pages[0]?.container.children ?? [])].map((el) => el.className);
+    expect(children).toEqual(["page", "textLayer", "overlay"]);
   });
 
   it("replaces existing content on each call", () => {

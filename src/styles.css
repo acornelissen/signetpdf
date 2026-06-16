@@ -592,6 +592,24 @@ body.drag-over::after {
 .overlay {
   position: absolute;
   inset: 0;
+  z-index: 1; /* above the text layer */
+  /* Let clicks in empty areas fall through to the text layer for selection;
+     the controls below re-enable pointer events for themselves. */
+  pointer-events: none;
+}
+
+/* Interactive controls stay clickable even though the overlay base does not. */
+.overlay .field,
+.overlay .text-box,
+.overlay .stamp {
+  pointer-events: auto;
+}
+
+/* While a create tool is armed, the overlay captures clicks to place the new
+   text box or signature (text selection is suspended during placement). */
+.viewer.tool-text .overlay,
+.viewer.tool-stamp .overlay {
+  pointer-events: auto;
 }
 
 .overlay .field {

@@ -3,6 +3,9 @@ node_modules
 src-tauri
 package-lock.json
 
+# Vendored verbatim from pdfjs-dist (re-copied on upgrade, not hand-formatted)
+src/pdf/textlayer.css
+
 # Tool-managed / generated files
 .beads
 .agents

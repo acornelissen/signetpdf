@@ -57,10 +57,15 @@ import { capturePageGeometry } from "./pdf/geometry";
 import { mostVisiblePage, pageDisplaySize } from "./pdf/layout";
 import {
   clearPageCanvas,
+  clearTextLayer,
   createPagePlaceholders,
+  renderPageTextLayer,
   renderPageToCanvas,
   type RenderedPage,
 } from "./pdf/render";
+import type { TextLayer } from "pdfjs-dist/legacy/build/pdf.mjs";
+import "./pdf/textlayer.css";
+import "./pdf/textlayer.overrides.css"; // must load after textlayer.css to win
 import { isEncryptedPdf, saveModel, type SaveOptions } from "./save/save";
 import { clampScale, fitToWidthScale, stepZoom, zoomByDelta } from "./pdf/zoom";
 
@@ -115,6 +120,8 @@ interface Viewer {
   // Tracks how much of each page is in view, to drive the page indicator.
   pageObserver: IntersectionObserver | null;
   pageRatios: Map<number, number>;
+  // Live text layers by page index, kept so they can be cancelled on unmount.
+  textLayers: Map<number, TextLayer>;
 }
 
 /** Apply a model edit and record it for undo. The model is the present snapshot. */
@@ -375,14 +382,32 @@ async function mountPage(
   placeFormControls(viewer, page, geometry);
   placeTextBoxes(viewer, page, geometry);
   placeStamps(viewer, page, geometry);
+
+  // Selection is a non-critical enhancement: render the text layer after the
+  // canvas, and never let a failure block the page from showing.
+  try {
+    const layer = await renderPageTextLayer(viewer.doc, page.index + 1, page.text, viewer.scale);
+    if (live.has(page.index)) {
+      viewer.textLayers.set(page.index, layer);
+    } else {
+      clearTextLayer(page.text, layer); // unmounted while building
+    }
+  } catch (error) {
+    // Selection is non-critical, so don't block the page — but surface the
+    // reason rather than swallowing it.
+    console.warn(`Text layer failed for page ${page.index + 1}:`, error);
+    clearTextLayer(page.text, undefined);
+  }
 }
 
-/** Free a page that scrolled away: drop its canvas and overlay controls. */
-function unmountPage(page: RenderedPage, live: Set<number>): void {
+/** Free a page that scrolled away: drop its canvas, text layer and controls. */
+function unmountPage(viewer: Viewer, page: RenderedPage, live: Set<number>): void {
   if (!live.delete(page.index)) {
     return;
   }
   clearPageCanvas(page.canvas);
+  clearTextLayer(page.text, viewer.textLayers.get(page.index));
+  viewer.textLayers.delete(page.index);
   page.overlay.replaceChildren();
 }
 
@@ -394,6 +419,13 @@ async function rerender(viewer: Viewer): Promise<void> {
     return;
   }
   viewer.observer?.disconnect();
+
+  // Placeholders (and their text layers) are about to be replaced; cancel any
+  // pending text-layer renders so they don't write into detached nodes.
+  for (const layer of viewer.textLayers.values()) {
+    layer.cancel();
+  }
+  viewer.textLayers.clear();
 
   const model = viewer.model;
   const sizes = model.pages.map((page) => pageDisplaySize(page, viewer.scale));
@@ -422,7 +454,7 @@ async function rerender(viewer: Viewer): Promise<void> {
         if (entry.isIntersecting) {
           void mountPage(viewer, page, geometry, live);
         } else {
-          unmountPage(page, live);
+          unmountPage(viewer, page, live);
         }
       }
     },
@@ -831,6 +863,7 @@ window.addEventListener("DOMContentLoaded", () => {
     observer: null,
     pageObserver: null,
     pageRatios: new Map(),
+    textLayers: new Map(),
   };
 
   // No document yet: show the empty-state screen, hide the dock and viewer.

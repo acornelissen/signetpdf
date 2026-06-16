@@ -1,4 +1,4 @@
-import { AnnotationMode, type PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { AnnotationMode, TextLayer, type PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { DisplaySize } from "./layout";
 
 /**
@@ -41,7 +41,45 @@ export interface RenderedPage {
   readonly index: number; // 0-based
   readonly container: HTMLElement;
   readonly canvas: HTMLCanvasElement;
+  // Selectable text spans (pdf.js TextLayer), between the canvas and the overlay.
+  readonly text: HTMLElement;
   readonly overlay: HTMLElement;
+}
+
+/**
+ * Render a page's selectable text layer into `container` at the given scale: the
+ * transparent, positioned spans pdf.js uses for text selection and copy. Returns
+ * the TextLayer so the caller can cancel it when the page scrolls away. The
+ * --total-scale-factor variable is what pdf.js's CSS uses to size the spans; the
+ * viewer (which we don't use) would normally set it, so we set it here.
+ */
+export async function renderPageTextLayer(
+  doc: PDFDocumentProxy,
+  pageNumber: number,
+  container: HTMLElement,
+  scale: number,
+): Promise<TextLayer> {
+  const page = await doc.getPage(pageNumber);
+  const viewport = page.getViewport({ scale });
+  // Pass the text stream straight to TextLayer (which reads it via getReader)
+  // rather than page.getTextContent(), whose `for await ... of readableStream`
+  // throws on WebKit/WKWebView builds without ReadableStream async iteration.
+  const textContentSource = page.streamTextContent({
+    includeMarkedContent: true,
+    disableNormalization: true,
+  });
+  container.replaceChildren();
+  container.style.setProperty("--total-scale-factor", String(scale));
+  const layer = new TextLayer({ textContentSource, container, viewport });
+  await layer.render();
+  return layer;
+}
+
+/** Cancel a page's text layer and drop its spans when it scrolls out of view. */
+export function clearTextLayer(container: HTMLElement, layer: TextLayer | undefined): void {
+  layer?.cancel();
+  container.replaceChildren();
+  container.style.removeProperty("--total-scale-factor");
 }
 
 /**
@@ -62,12 +100,18 @@ export function createPagePlaceholders(mount: HTMLElement, sizes: DisplaySize[])
     canvas.className = "page";
     container.appendChild(canvas);
 
+    // Text layer sits above the canvas (for selection) but below the overlay
+    // (so annotation/form controls stay on top and clickable).
+    const text = document.createElement("div");
+    text.className = "textLayer";
+    container.appendChild(text);
+
     const overlay = document.createElement("div");
     overlay.className = "overlay";
     container.appendChild(overlay);
 
     mount.appendChild(container);
-    return { index, container, canvas, overlay };
+    return { index, container, canvas, text, overlay };
   });
 }
 

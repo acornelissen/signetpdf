@@ -1,0 +1,12 @@
+/* Overrides for the vendored pdf.js text-layer CSS. Imported after textlayer.css.
+
+   pdf.js renders the native selection transparent (it highlights via its own
+   editor layer, which we don't use), so selecting text shows nothing. Restore a
+   visible highlight. ::selection is a highlight pseudo-element with a special
+   cascade keyed to the originating element, so this must target the text span
+   directly — an ancestor selector (.textLayer ::selection) loses to pdf.js even
+   with higher specificity and !important. Verified in WebKit and Chromium via
+   the e2e selection screenshot. */
+.textLayer span::selection {
+  background: rgba(47, 107, 216, 0.35) !important;
+}
