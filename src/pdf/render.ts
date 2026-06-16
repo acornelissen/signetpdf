@@ -119,6 +119,7 @@ export function createPagePlaceholders(mount: HTMLElement, sizes: DisplaySize[])
   return sizes.map((size, index) => {
     const container = document.createElement("div");
     container.className = "page-container";
+    container.dataset.pageIndex = String(index);
     container.style.width = `${size.width}px`;
     container.style.height = `${size.height}px`;
 

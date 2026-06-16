@@ -20,7 +20,7 @@ import {
   type SignatureStamp,
   type TextBox,
 } from "./model/document";
-import { screenPoint } from "./model/geometry";
+import { screenPoint, type ScreenPoint } from "./model/geometry";
 import {
   canRedo,
   canUndo,
@@ -32,6 +32,14 @@ import {
   type History,
 } from "./model/history";
 import { detectPlatform, matchShortcut } from "./app/shortcuts";
+import {
+  buildMenuItems,
+  classifyContextTarget,
+  closeContextMenu,
+  openContextMenu,
+  type ContextTarget,
+  type MenuActionKey,
+} from "./app/contextmenu";
 import { buildDock } from "./app/dock";
 import { icon, type IconName } from "./app/icons";
 import { createToasts, type Toasts, type ToastVariant } from "./app/toast";
@@ -541,6 +549,8 @@ function placeTextBoxes(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
       }
     };
     const control = buildTextBoxControl(annotation, geometry, viewport);
+    control.dataset.annotationId = annotation.id;
+    control.dataset.annotationKind = "text";
     bindTextBoxControl(control, annotation, commit);
     const commitAndRerender = (updated: TextBox): void => {
       commit(updated);
@@ -570,6 +580,8 @@ function placeStamps(viewer: Viewer, page: RenderedPage, geometry: PageGeometry)
       continue;
     }
     const control = buildStampControl(annotation, geometry, viewport);
+    control.dataset.annotationId = annotation.id;
+    control.dataset.annotationKind = "signature";
     const commitAndRerender = (updated: SignatureStamp): void => {
       if (viewer.model) {
         applyEdit(viewer, updateAnnotation(viewer.model, updated));
@@ -618,6 +630,94 @@ function armCreateTools(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
     }
     void rerender(viewer);
   });
+}
+
+/** The PDF-user-space placement for a right-click over a rendered page. */
+function pagePlacement(
+  viewer: Viewer,
+  pageIndex: number,
+  event: MouseEvent,
+): StampPlacement | null {
+  const page = viewer.pages[pageIndex];
+  const geometry = viewer.model?.pages[pageIndex];
+  if (!page || !geometry) {
+    return null;
+  }
+  const rect = page.overlay.getBoundingClientRect();
+  return { point: screenPoint(event.clientX - rect.left, event.clientY - rect.top), geometry };
+}
+
+/** Run a chosen context-menu action against the model or viewer chrome. */
+function runContextAction(
+  viewer: Viewer,
+  target: ContextTarget,
+  placement: StampPlacement | null,
+  action: MenuActionKey,
+): void {
+  switch (action) {
+    case "copy":
+      document.execCommand("copy"); // copies the live selection
+      return;
+    case "fit-width":
+      void fitWidth(viewer);
+      return;
+    case "reset-zoom":
+      void setScale(viewer, 1);
+      return;
+    case "edit-annotation":
+      if (target.kind === "annotation") {
+        viewer.focusAnnotationId = target.id;
+        void rerender(viewer);
+      }
+      return;
+    case "delete-annotation":
+      if (target.kind === "annotation" && viewer.model) {
+        applyEdit(viewer, removeAnnotation(viewer.model, target.id));
+        void rerender(viewer);
+      }
+      return;
+    case "add-text":
+      if (placement && viewer.model) {
+        applyEdit(
+          viewer,
+          createTextBoxAt(viewer.model, placement.point, placement.geometry, {
+            scale: viewer.scale,
+          }),
+        );
+        viewer.focusAnnotationId =
+          viewer.model.annotations[viewer.model.annotations.length - 1]?.id ?? null;
+        void rerender(viewer);
+      }
+      return;
+    case "add-signature":
+      openSignatureDialog(viewer, placement);
+      return;
+  }
+}
+
+/**
+ * Replace the webview's default context menu with the app's own. Editable inputs
+ * keep their native menu (paste must work); everywhere else the default is
+ * suppressed and a context-sensitive menu is shown when there is something to
+ * offer. The placement point for a page right-click is captured now, before the
+ * menu can scroll the document out from under it.
+ */
+function handleContextMenu(viewer: Viewer, event: MouseEvent): void {
+  const selection = window.getSelection();
+  const hasSelection = !!selection && !selection.isCollapsed && selection.toString().trim() !== "";
+  const target = classifyContextTarget(event.target as Element | null, hasSelection);
+  if (target.kind === "editable") {
+    return; // leave the native menu in place
+  }
+  event.preventDefault();
+  const items = buildMenuItems(target);
+  if (items.length === 0) {
+    return; // chrome: native menu suppressed, nothing custom to show
+  }
+  const placement = target.kind === "page" ? pagePlacement(viewer, target.page, event) : null;
+  openContextMenu(items, { x: event.clientX, y: event.clientY }, (action) =>
+    runContextAction(viewer, target, placement, action),
+  );
 }
 
 // Render a page's canvas and place its controls when it nears the viewport. The
@@ -680,6 +780,7 @@ function unmountPage(viewer: Viewer, page: RenderedPage, live: Set<number>): voi
 }
 
 async function rerender(viewer: Viewer): Promise<void> {
+  closeContextMenu(); // its targets are about to be replaced
   if (viewer.zoomLabel) {
     viewer.zoomLabel.textContent = `${Math.round(viewer.scale * 100)}%`;
   }
@@ -884,12 +985,44 @@ function cancelTools(viewer: Viewer): void {
   viewer.toasts?.clear();
 }
 
+// Where the context menu's "Add signature here" wants the stamp dropped. When
+// present the dialog places the stamp at this point on "use"/import; when null
+// it arms the sign tool for a click-to-place, as the dock button does.
+interface StampPlacement {
+  point: ScreenPoint;
+  geometry: PageGeometry;
+}
+
+/** Place the stamp at a recorded point, or arm the tool for a click-to-place. */
+function placeOrArmStamp(
+  viewer: Viewer,
+  image: StampImage,
+  placement: StampPlacement | null,
+): void {
+  setTextTool(viewer, false); // tools are mutually exclusive
+  if (placement && viewer.model) {
+    applyEdit(
+      viewer,
+      createSignatureStampAt(
+        viewer.model,
+        placement.point,
+        placement.geometry,
+        { scale: viewer.scale },
+        image,
+      ),
+    );
+    void rerender(viewer);
+  } else {
+    setStampTool(viewer, image);
+  }
+}
+
 /**
- * Open the signature dialog: a fresh pad to draw on, with clear/cancel/use. On
- * "use" the drawn PNG is captured and signature placement is armed, so the next
- * page click drops the stamp (createSignatureStampAt) at that point.
+ * Open the signature dialog: a fresh pad to draw on, with clear/cancel/use. With
+ * a `placement` the captured PNG is dropped at that point; without one, signature
+ * placement is armed so the next page click drops the stamp.
  */
-function openSignatureDialog(viewer: Viewer): void {
+function openSignatureDialog(viewer: Viewer, placement: StampPlacement | null = null): void {
   const dialog = document.querySelector<HTMLDialogElement>("#signature-dialog");
   const host = document.querySelector<HTMLElement>("#signature-pad-host");
   if (!dialog || !host) {
@@ -897,7 +1030,7 @@ function openSignatureDialog(viewer: Viewer): void {
   }
   const pad = createSignaturePad(SIGNATURE_PAD.width, SIGNATURE_PAD.height);
   host.replaceChildren(pad.element);
-  bindSignatureDialog(viewer, dialog, pad);
+  bindSignatureDialog(viewer, dialog, pad, placement);
   dialog.showModal();
 }
 
@@ -906,15 +1039,18 @@ function openSignatureDialog(viewer: Viewer): void {
  * to a transparent PNG, and arm placement. Unsupported or unreadable files
  * surface on the status line.
  */
-async function importSignature(viewer: Viewer, dialog: HTMLDialogElement): Promise<void> {
+async function importSignature(
+  viewer: Viewer,
+  dialog: HTMLDialogElement,
+  placement: StampPlacement | null,
+): Promise<void> {
   const data = await invoke<number[] | null>("open_image");
   if (!data) {
     return; // user cancelled
   }
   try {
     const image = await importImageAsStamp(new Uint8Array(data), DEFAULT_STAMP_WIDTH);
-    setTextTool(viewer, false);
-    setStampTool(viewer, image);
+    placeOrArmStamp(viewer, image, placement);
     dialog.close();
   } catch (error) {
     notify(viewer, `Could not import that image: ${String(error)}`, "error");
@@ -922,7 +1058,12 @@ async function importSignature(viewer: Viewer, dialog: HTMLDialogElement): Promi
 }
 
 /** Wire the dialog's clear/cancel/use actions to a freshly mounted pad. */
-function bindSignatureDialog(viewer: Viewer, dialog: HTMLDialogElement, pad: SignaturePad): void {
+function bindSignatureDialog(
+  viewer: Viewer,
+  dialog: HTMLDialogElement,
+  pad: SignaturePad,
+  placement: StampPlacement | null,
+): void {
   const action = (id: string, run: () => void): void => {
     const button = dialog.querySelector<HTMLButtonElement>(id);
     if (button) {
@@ -932,19 +1073,22 @@ function bindSignatureDialog(viewer: Viewer, dialog: HTMLDialogElement, pad: Sig
   action("#signature-clear", () => pad.clear());
   action("#signature-cancel", () => dialog.close());
   action("#signature-import", () => {
-    void importSignature(viewer, dialog);
+    void importSignature(viewer, dialog, placement);
   });
   action("#signature-use", () => {
     if (pad.isEmpty()) {
       return;
     }
-    setTextTool(viewer, false); // tools are mutually exclusive
     const aspect = SIGNATURE_PAD.height / SIGNATURE_PAD.width;
-    setStampTool(viewer, {
-      pngBytes: pad.exportPng(),
-      width: DEFAULT_STAMP_WIDTH,
-      height: DEFAULT_STAMP_WIDTH * aspect,
-    });
+    placeOrArmStamp(
+      viewer,
+      {
+        pngBytes: pad.exportPng(),
+        width: DEFAULT_STAMP_WIDTH,
+        height: DEFAULT_STAMP_WIDTH * aspect,
+      },
+      placement,
+    );
     dialog.close();
   });
 }
@@ -1169,6 +1313,8 @@ window.addEventListener("DOMContentLoaded", () => {
   on("#zoom-in", () => setScale(viewer, stepZoom(viewer.scale, "in")), "zoom");
   on("#zoom-out", () => setScale(viewer, stepZoom(viewer.scale, "out")), "zoom");
   on("#zoom-fit", () => fitWidth(viewer), "fit to width");
+
+  document.addEventListener("contextmenu", (event) => handleContextMenu(viewer, event));
 
   // The zoom readout doubles as a reset-to-100% control.
   document
