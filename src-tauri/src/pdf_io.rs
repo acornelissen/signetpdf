@@ -124,7 +124,10 @@ fn has_pdf_extension(path: &Path) -> bool {
 /// drag-drop event handled in Rust — never from the webview — so this never
 /// exposes an arbitrary-path read to the frontend. The dropped path is granted
 /// for later in-place saves, matching `open_pdf`. Non-PDF drops are refused.
-pub fn read_dropped_pdf(granted: &Mutex<HashSet<PathBuf>>, path: &Path) -> Result<OpenedPdf, ReadError> {
+pub fn read_dropped_pdf(
+    granted: &Mutex<HashSet<PathBuf>>,
+    path: &Path,
+) -> Result<OpenedPdf, ReadError> {
     if !has_pdf_extension(path) {
         return Err(ReadError::Unsupported);
     }
@@ -318,7 +321,10 @@ mod tests {
         let image = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/signature.png");
         let err = read_dropped_pdf(&granted, &image);
         assert!(matches!(err, Err(ReadError::Unsupported)));
-        assert!(granted.lock().unwrap().is_empty(), "a refused drop grants nothing");
+        assert!(
+            granted.lock().unwrap().is_empty(),
+            "a refused drop grants nothing"
+        );
     }
 
     #[test]
