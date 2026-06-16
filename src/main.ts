@@ -363,35 +363,59 @@ function refreshSearchHighlights(viewer: Viewer): void {
   CSS.highlights.delete("search-match");
   CSS.highlights.delete("search-current");
   const { query, matches } = viewer.search;
-  if (query.trim() === "" || matches.length === 0) {
-    return;
+  if (query.trim() !== "" && matches.length > 0) {
+    const all = new Highlight();
+    const active = new Highlight();
+    for (const page of viewer.pages) {
+      if (!viewer.textLayers.has(page.index)) {
+        continue; // only rendered pages have spans to range over
+      }
+      const { spans, texts } = pageSpans(page);
+      const ordinal = currentOrdinal(viewer, page.index);
+      matchRanges(texts, query).forEach((item, i) => {
+        const startNode = spans[item.startItem]?.firstChild;
+        const endNode = spans[item.endItem]?.firstChild;
+        if (!startNode || !endNode) {
+          return;
+        }
+        const range = document.createRange();
+        try {
+          range.setStart(startNode, item.startOffset);
+          range.setEnd(endNode, item.endOffset);
+        } catch {
+          return;
+        }
+        (i === ordinal ? active : all).add(range);
+      });
+    }
+    CSS.highlights.set("search-match", all);
+    CSS.highlights.set("search-current", active);
   }
-  const all = new Highlight();
-  const active = new Highlight();
+  repaintTextLayers(viewer);
+}
+
+/**
+ * Force WKWebView to repaint the live text layers after the highlight registry
+ * changed. WebKit's WKWebView keeps already-painted ::highlight() pseudos on
+ * screen after their CSS.highlights entry is deleted or shrunk — the registry
+ * is empty but the stale paint remains. Chromium and Playwright's WebKit both
+ * invalidate correctly, so only the real macOS/iOS webview needs this nudge.
+ * Toggling display off and on (with a forced reflow between) drops each text
+ * layer from the render tree and rebuilds it, repainting from the now-current
+ * registry. The layer is absolutely positioned inside a fixed-size page
+ * container, so hiding it shifts no layout; the toggle is synchronous, so no
+ * intermediate frame paints and nothing flickers.
+ */
+function repaintTextLayers(viewer: Viewer): void {
   for (const page of viewer.pages) {
     if (!viewer.textLayers.has(page.index)) {
-      continue; // only rendered pages have spans to range over
+      continue;
     }
-    const { spans, texts } = pageSpans(page);
-    const ordinal = currentOrdinal(viewer, page.index);
-    matchRanges(texts, query).forEach((item, i) => {
-      const startNode = spans[item.startItem]?.firstChild;
-      const endNode = spans[item.endItem]?.firstChild;
-      if (!startNode || !endNode) {
-        return;
-      }
-      const range = document.createRange();
-      try {
-        range.setStart(startNode, item.startOffset);
-        range.setEnd(endNode, item.endOffset);
-      } catch {
-        return;
-      }
-      (i === ordinal ? active : all).add(range);
-    });
+    const { style } = page.text;
+    style.display = "none";
+    void page.text.offsetHeight; // force reflow so the restore paints fresh
+    style.display = "";
   }
-  CSS.highlights.set("search-match", all);
-  CSS.highlights.set("search-current", active);
 }
 
 /** Bring the current match into view, scrolling its page in if needed. */
