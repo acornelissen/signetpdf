@@ -840,6 +840,19 @@ body.drag-over::after {
   cursor: nwse-resize;
 }
 
+/* Selected: the whole box is focused (not editing) — a ring matching the stamp,
+   ready for keyboard move/resize. */
+.overlay .text-box:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+/* Editing: the textarea has focus — a solid border distinguishes it from the
+   dashed idle/selected state. */
+.overlay .text-box:has(.text-box-input:focus) {
+  border-style: solid;
+}
+
 /* While the text tool is armed, the page reads as a place-to-click target. */
 .viewer.tool-text .overlay {
   cursor: crosshair;
@@ -914,6 +927,26 @@ body.drag-over::after {
 .overlay .stamp-resize:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+/* Chrome affordances shared by text boxes and stamps: hover feedback on the
+   grips, and a larger pointer hit area around the small resize handles (the
+   visible square keeps its size). */
+.overlay .text-box-grip:hover,
+.overlay .stamp-grip:hover {
+  filter: brightness(0.92);
+}
+
+.overlay .text-box-resize:hover,
+.overlay .stamp-resize:hover {
+  background: var(--accent-soft);
+}
+
+.overlay .text-box-resize::before,
+.overlay .stamp-resize::before {
+  content: "";
+  position: absolute;
+  inset: -6px; /* enlarge the grab target without changing the visible handle */
 }
 
 /* While a signature is armed, the page reads as a place-to-click target. */

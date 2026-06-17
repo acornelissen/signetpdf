@@ -96,3 +96,25 @@ test("a saved signature can be picked and placed at a right-click point", async 
 
   await expect(page.locator('.stamp[data-annotation-kind="signature"]')).toHaveCount(1);
 });
+
+test("a placed signature moves with the keyboard once selected", async ({ page }) => {
+  await page.evaluate((png) => {
+    (window as unknown as { __sigStore: unknown[] }).__sigStore = [{ id: "seed", png }];
+  }, signatureBytes);
+
+  const pageBox = (await page.locator(".page-container").first().boundingBox())!;
+  await page.mouse.click(pageBox.x + pageBox.width / 2, pageBox.y + pageBox.height / 2, {
+    button: "right",
+  });
+  await page.getByRole("menuitem", { name: "Add signature here", exact: true }).click();
+  await page.locator(".saved-signature").click();
+
+  const stamp = page.locator('.stamp[data-annotation-kind="signature"]');
+  await stamp.click(); // select (focus the container)
+  await expect(stamp).toBeFocused();
+
+  const start = (await stamp.boundingBox())!;
+  await page.keyboard.press("Shift+ArrowRight");
+  const moved = (await stamp.boundingBox())!;
+  expect(moved.x).toBeGreaterThan(start.x + 5);
+});

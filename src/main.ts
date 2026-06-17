@@ -45,7 +45,13 @@ import { icon, type IconName } from "./app/icons";
 import { createToasts, type Toasts, type ToastVariant } from "./app/toast";
 import { createTextBoxAt } from "./annotations/text";
 import { createSignatureStampAt, type StampImage } from "./sign/stamp";
-import { bindStampDelete, bindStampDrag, bindStampScale, buildStampControl } from "./sign/overlay";
+import {
+  bindStampDelete,
+  bindStampDrag,
+  bindStampKeyboard,
+  bindStampScale,
+  buildStampControl,
+} from "./sign/overlay";
 import { createSignaturePad, pngBytesToDataUrl, type SignaturePad } from "./sign/pad";
 import { listSignatures, saveSignature } from "./sign/store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -54,6 +60,7 @@ import {
   bindTextBoxControl,
   bindTextBoxDelete,
   bindTextBoxDrag,
+  bindTextBoxKeyboard,
   bindTextBoxResize,
   buildTextBoxControl,
   textBoxInput,
@@ -560,6 +567,9 @@ function placeTextBoxes(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
     };
     bindTextBoxDrag(control, annotation, geometry, viewport, commitAndRerender);
     bindTextBoxResize(control, annotation, geometry, viewport, commitAndRerender);
+    // Keyboard nudge repositions the control live and commits without a
+    // re-render, so the box keeps focus between keystrokes.
+    bindTextBoxKeyboard(control, annotation, geometry, viewport, commit);
     bindTextBoxDelete(control, annotation, (id) => {
       if (viewer.model) {
         applyEdit(viewer, removeAnnotation(viewer.model, id));
@@ -590,8 +600,15 @@ function placeStamps(viewer: Viewer, page: RenderedPage, geometry: PageGeometry)
         void rerender(viewer);
       }
     };
+    const commit = (updated: SignatureStamp): void => {
+      if (viewer.model) {
+        applyEdit(viewer, updateAnnotation(viewer.model, updated));
+      }
+    };
     bindStampDrag(control, annotation, geometry, viewport, commitAndRerender);
     bindStampScale(control, annotation, geometry, viewport, commitAndRerender);
+    // Keyboard nudge commits live without a re-render, keeping the stamp focused.
+    bindStampKeyboard(control, annotation, geometry, viewport, commit);
     bindStampDelete(control, annotation, (id) => {
       if (viewer.model) {
         applyEdit(viewer, removeAnnotation(viewer.model, id));

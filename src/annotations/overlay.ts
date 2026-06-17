@@ -1,7 +1,15 @@
 import type { Viewport } from "../model/coords";
 import type { PageGeometry, TextBox } from "../model/document";
+import { screenPoint } from "../model/geometry";
 import { onHandleDrag } from "./drag";
-import { moveTextBox, resizeTextBox, textBoxScreenRect, type ScreenRect } from "./transform";
+import {
+  growTextBox,
+  moveTextBox,
+  nudgeFromKey,
+  resizeTextBox,
+  textBoxScreenRect,
+  type ScreenRect,
+} from "./transform";
 
 // The text-annotation overlay: a positioned, editable HTML layer drawn over the
 // rendered page. Like the form overlay it holds no state of its own — the box is
@@ -45,6 +53,11 @@ export function buildTextBoxControl(
   const container = document.createElement("div");
   container.className = "text-box";
   container.dataset.annotationId = box.id;
+  // Focusable as a whole so it can be selected (then moved/resized by keyboard)
+  // without entering the textarea; Enter or a click drops into editing.
+  container.tabIndex = 0;
+  container.setAttribute("role", "group");
+  container.setAttribute("aria-label", "Text annotation (arrow keys move, Alt+arrows resize)");
   position(container, textBoxScreenRect(box, page, viewport));
 
   const grip = document.createElement("div");
@@ -95,7 +108,7 @@ export function bindTextBoxControl(
       event.preventDefault();
       cancelled = true;
       input.value = box.text;
-      input.blur();
+      container.focus(); // revert and step back to the selected (not editing) state
     }
   });
 
@@ -107,6 +120,50 @@ export function bindTextBoxControl(
     if (input.value !== box.text) {
       onCommit({ ...box, text: input.value });
     }
+  });
+}
+
+/**
+ * Wire keyboard move/resize for a selected (focused, not editing) box. Arrows
+ * move it (Shift = 10pt), Alt+arrows resize it, Enter drops into editing. The
+ * box repositions live and commits to the model on each step (no re-render, so
+ * focus is kept); geometry stays on the seam via the transform helpers. Keys are
+ * ignored while the textarea is focused, so editing keeps native caret movement.
+ */
+export function bindTextBoxKeyboard(
+  container: HTMLElement,
+  box: TextBox,
+  page: PageGeometry,
+  viewport: Viewport,
+  onChange: (updated: TextBox) => void,
+): void {
+  let current = box;
+  container.addEventListener("keydown", (event) => {
+    if (event.target !== container) {
+      return; // editing: leave keys to the textarea
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      textBoxInput(container).focus();
+      return;
+    }
+    const nudge = nudgeFromKey(event, viewport.scale);
+    if (!nudge) {
+      return;
+    }
+    event.preventDefault();
+    current =
+      nudge.kind === "move"
+        ? moveTextBox(
+            current,
+            screenPoint(0, 0),
+            screenPoint(nudge.dxScreen, nudge.dyScreen),
+            page,
+            viewport,
+          )
+        : growTextBox(current, nudge.dw, nudge.dh);
+    position(container, textBoxScreenRect(current, page, viewport));
+    onChange(current);
   });
 }
 

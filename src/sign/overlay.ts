@@ -1,9 +1,12 @@
 import type { Viewport } from "../model/coords";
 import type { PageGeometry, SignatureStamp } from "../model/document";
+import { screenPoint } from "../model/geometry";
 import { onHandleDrag } from "../annotations/drag";
 import {
   annotationScreenRect,
+  growStamp,
   moveStamp,
+  nudgeFromKey,
   scaleStamp,
   type ScreenRect,
 } from "../annotations/transform";
@@ -151,4 +154,46 @@ export function bindStampScale(
     },
     (from, to) => onScale(scaleStamp(stamp, from, to, page, viewport)),
   );
+}
+
+/**
+ * Wire keyboard move/resize for a selected (focused) stamp. Arrows move it
+ * (Shift = 10pt), Alt+arrows scale it (aspect preserved). The stamp repositions
+ * live and commits on each step (no re-render, so focus is kept); geometry stays
+ * on the seam via the transform helpers. Ignores keys aimed at the delete button.
+ */
+export function bindStampKeyboard(
+  container: HTMLElement,
+  stamp: SignatureStamp,
+  page: PageGeometry,
+  viewport: Viewport,
+  onChange: (updated: SignatureStamp) => void,
+): void {
+  let current = stamp;
+  container.addEventListener("keydown", (event) => {
+    if (event.target !== container) {
+      return; // e.g. focus on the delete button
+    }
+    const nudge = nudgeFromKey(event, viewport.scale);
+    if (!nudge) {
+      return;
+    }
+    event.preventDefault();
+    if (nudge.kind === "move") {
+      current = moveStamp(
+        current,
+        screenPoint(0, 0),
+        screenPoint(nudge.dxScreen, nudge.dyScreen),
+        page,
+        viewport,
+      );
+    } else {
+      current = growStamp(current, nudge.dw !== 0 ? nudge.dw : nudge.dh);
+    }
+    position(
+      container,
+      annotationScreenRect(current.origin, current.width, current.height, page, viewport),
+    );
+    onChange(current);
+  });
 }
