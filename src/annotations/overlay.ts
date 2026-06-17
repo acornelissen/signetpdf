@@ -39,6 +39,19 @@ export function textBoxInput(container: HTMLElement): HTMLTextAreaElement {
   return input;
 }
 
+/** Apply a box's formatting to its textarea (size scaled by the viewport). */
+export function applyTextBoxStyle(
+  input: HTMLTextAreaElement,
+  box: TextBox,
+  viewport: Viewport,
+): void {
+  input.style.fontSize = `${box.fontSize * viewport.scale}px`;
+  input.style.fontWeight = box.bold ? "700" : "400";
+  input.style.fontStyle = box.italic ? "italic" : "normal";
+  input.style.color = box.color;
+  input.style.textAlign = box.align;
+}
+
 /**
  * Build the control for a text box: a positioned container with a move grip and
  * an editable textarea. The font size is scaled by the viewport so on-screen
@@ -69,11 +82,7 @@ export function buildTextBoxControl(
   input.className = "text-box-input";
   input.value = box.text;
   input.setAttribute("aria-label", "Text annotation");
-  input.style.fontSize = `${box.fontSize * viewport.scale}px`;
-  input.style.fontWeight = box.bold ? "700" : "400";
-  input.style.fontStyle = box.italic ? "italic" : "normal";
-  input.style.color = box.color;
-  input.style.textAlign = box.align;
+  applyTextBoxStyle(input, box, viewport);
   container.appendChild(input);
 
   const remove = document.createElement("button");

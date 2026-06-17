@@ -59,6 +59,28 @@ test("a selected text box moves and resizes with the keyboard", async ({ page })
   expect(resized.width).toBeGreaterThan(widthBefore + 5);
 });
 
+test("the formatting toolbar appears on focus and applies formatting live", async ({ page }) => {
+  await createTextBox(page); // opens editing (textarea focused)
+  const toolbar = page.locator(".text-box-toolbar");
+  await expect(toolbar).toBeVisible();
+
+  const input = page.locator(".text-box-input");
+  await expect(input).toHaveCSS("font-weight", "400");
+  await page.locator(".ttb-bold").click();
+  await expect(page.locator(".ttb-bold")).toHaveAttribute("aria-pressed", "true");
+  await expect(input).toHaveCSS("font-weight", "700");
+
+  await page.locator('.ttb-align[data-align="center"]').click();
+  await expect(input).toHaveCSS("text-align", "center");
+});
+
+test("the toolbar stays visible in the selected (not editing) state", async ({ page }) => {
+  await createTextBox(page);
+  await page.locator(".text-box-input").press("Escape"); // editing -> selected
+  await expect(page.locator(".text-box")).toBeFocused();
+  await expect(page.locator(".text-box-toolbar")).toBeVisible();
+});
+
 test("arrow keys move the caret while editing, leaving the box put", async ({ page }) => {
   await createTextBox(page);
   const input = page.locator(".text-box-input");

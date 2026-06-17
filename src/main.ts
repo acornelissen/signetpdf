@@ -60,6 +60,7 @@ import { listSignatures, saveSignature } from "./sign/store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { importImageAsStamp } from "./sign/image";
 import {
+  applyTextBoxStyle,
   bindTextBoxControl,
   bindTextBoxDelete,
   bindTextBoxDrag,
@@ -68,6 +69,7 @@ import {
   buildTextBoxControl,
   textBoxInput,
 } from "./annotations/overlay";
+import { attachTextToolbar } from "./annotations/toolbar";
 import { listFormFields, type FormField } from "./forms/fields";
 import { applyFieldValue, bindFieldControl, buildFieldControl } from "./forms/overlay";
 import { hasXfa } from "./forms/xfa";
@@ -595,6 +597,12 @@ function placeTextBoxes(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
         applyEdit(viewer, removeAnnotation(viewer.model, id));
         void rerender(viewer);
       }
+    });
+    // Formatting toolbar (shown via :focus-within). Changes apply to the live
+    // textarea and commit without a re-render, so editing/focus is uninterrupted.
+    attachTextToolbar(control, annotation, (updated) => {
+      applyTextBoxStyle(textBoxInput(control), updated, viewport);
+      commit(updated);
     });
     page.overlay.appendChild(control);
     if (annotation.id === viewer.focusAnnotationId) {
