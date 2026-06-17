@@ -115,6 +115,29 @@ export function resizeTextBox(
   };
 }
 
+/**
+ * Resize a text box by fixed user-space deltas (keyboard nudge), anchored at the
+ * origin and clamped to the minimum size. Rotation-independent: width and height
+ * are the box's own user-space dimensions.
+ */
+export function growTextBox(box: TextBox, dw: number, dh: number): TextBox {
+  return {
+    ...box,
+    width: Math.max(MIN_SIZE, box.width + dw),
+    height: Math.max(MIN_SIZE, box.height + dh),
+  };
+}
+
+/**
+ * Resize a signature stamp by a fixed user-space width delta (keyboard nudge),
+ * preserving aspect ratio and clamping to the minimum width.
+ */
+export function growStamp(stamp: SignatureStamp, dw: number): SignatureStamp {
+  const width = Math.max(MIN_SIZE, stamp.width + dw);
+  const factor = width / stamp.width;
+  return { ...stamp, width, height: stamp.height * factor };
+}
+
 /** Move a signature stamp by a screen drag, shifting its origin in user space. */
 export function moveStamp(
   stamp: SignatureStamp,

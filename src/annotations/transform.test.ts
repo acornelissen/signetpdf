@@ -3,7 +3,14 @@ import type { Viewport } from "../model/coords";
 import type { PageGeometry, TextBox } from "../model/document";
 import { screenPoint, userSpacePoint } from "../model/geometry";
 import type { SignatureStamp } from "../model/document";
-import { moveStamp, moveTextBox, resizeTextBox, scaleStamp } from "./transform";
+import {
+  growStamp,
+  growTextBox,
+  moveStamp,
+  moveTextBox,
+  resizeTextBox,
+  scaleStamp,
+} from "./transform";
 
 const page: PageGeometry = { index: 0, width: 612, height: 792, rotation: 0 };
 
@@ -121,5 +128,41 @@ describe("scaleStamp", () => {
     });
     expect(scaled.width).toBeGreaterThan(0);
     expect(scaled.height).toBeGreaterThan(0);
+  });
+});
+
+describe("growTextBox", () => {
+  it("adds the user-space deltas to width and height", () => {
+    const grown = growTextBox(box(), 30, 10);
+    expect(grown.width).toBe(230);
+    expect(grown.height).toBe(34);
+    expect(grown.origin).toEqual(box().origin); // origin anchored
+  });
+
+  it("clamps width and height to the minimum size", () => {
+    const grown = growTextBox(box(), -9999, -9999);
+    expect(grown.width).toBe(8);
+    expect(grown.height).toBe(8);
+  });
+
+  it("returns a new box, leaving the input untouched", () => {
+    const original = box();
+    const grown = growTextBox(original, 5, 5);
+    expect(grown).not.toBe(original);
+    expect(original.width).toBe(200);
+  });
+});
+
+describe("growStamp", () => {
+  it("changes width by the delta and height by the same factor", () => {
+    const grown = growStamp(stamp(), 30); // 150 -> 180 (x1.2)
+    expect(grown.width).toBeCloseTo(180);
+    expect(grown.height).toBeCloseTo(90);
+  });
+
+  it("clamps to the minimum size without inverting", () => {
+    const grown = growStamp(stamp(), -9999);
+    expect(grown.width).toBe(8);
+    expect(grown.height).toBeGreaterThan(0);
   });
 });
