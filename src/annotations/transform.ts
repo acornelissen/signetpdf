@@ -115,6 +115,41 @@ export function resizeTextBox(
   };
 }
 
+/** A keyboard nudge resolved to a move (screen pixels) or resize (user points). */
+export type Nudge =
+  | { kind: "move"; dxScreen: number; dyScreen: number }
+  | { kind: "resize"; dw: number; dh: number };
+
+/** The arrow keys, as screen-space unit directions (y grows downward). */
+const ARROW_DIRECTIONS: Record<string, readonly [number, number]> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+};
+
+/**
+ * Map an arrow keypress to a nudge: a 1pt step (10pt with Shift) that moves the
+ * annotation, or resizes it when Alt is held. Move is returned in screen pixels
+ * (scaled) so it can flow through the drag seam; resize is in user-space points.
+ * Returns null for any non-arrow key.
+ */
+export function nudgeFromKey(
+  event: { key: string; shiftKey: boolean; altKey: boolean },
+  scale: number,
+): Nudge | null {
+  const direction = ARROW_DIRECTIONS[event.key];
+  if (!direction) {
+    return null;
+  }
+  const step = event.shiftKey ? 10 : 1;
+  const [x, y] = direction;
+  if (event.altKey) {
+    return { kind: "resize", dw: x * step, dh: y * step };
+  }
+  return { kind: "move", dxScreen: x * step * scale, dyScreen: y * step * scale };
+}
+
 /**
  * Resize a text box by fixed user-space deltas (keyboard nudge), anchored at the
  * origin and clamped to the minimum size. Rotation-independent: width and height
