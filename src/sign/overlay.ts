@@ -8,7 +8,10 @@ import {
   moveStamp,
   nudgeFromKey,
   scaleStamp,
+  snapMovedStamp,
+  snapScaledStampBox,
   type ScreenRect,
+  type SnapBox,
 } from "../annotations/transform";
 import { pngBytesToDataUrl } from "./pad";
 
@@ -103,6 +106,7 @@ export function bindStampDrag(
   page: PageGeometry,
   viewport: Viewport,
   onMove: (updated: SignatureStamp) => void,
+  siblings?: readonly SnapBox[],
 ): void {
   const grip = container.querySelector<HTMLElement>(".stamp-grip");
   if (!grip) {
@@ -120,7 +124,14 @@ export function bindStampDrag(
       container.style.left = `${left + dx}px`;
       container.style.top = `${top + dy}px`;
     },
-    (from, to) => onMove(moveStamp(stamp, from, to, page, viewport)),
+    (from, to, event) => {
+      let moved = moveStamp(stamp, from, to, page, viewport);
+      // Snap to the grid/neighbours unless the user holds Alt for fine control.
+      if (siblings && !event.altKey) {
+        moved = snapMovedStamp(moved, siblings);
+      }
+      onMove(moved);
+    },
   );
 }
 
@@ -135,6 +146,7 @@ export function bindStampScale(
   page: PageGeometry,
   viewport: Viewport,
   onScale: (updated: SignatureStamp) => void,
+  siblings?: readonly SnapBox[],
 ): void {
   const handle = container.querySelector<HTMLElement>(".stamp-resize");
   if (!handle) {
@@ -152,7 +164,10 @@ export function bindStampScale(
       container.style.width = `${next}px`;
       container.style.height = `${next * ratio}px`;
     },
-    (from, to) => onScale(scaleStamp(stamp, from, to, page, viewport)),
+    (from, to, event) => {
+      const scaled = scaleStamp(stamp, from, to, page, viewport);
+      onScale(siblings && !event.altKey ? snapScaledStampBox(scaled, siblings) : scaled);
+    },
   );
 }
 

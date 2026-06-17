@@ -38,6 +38,11 @@ function pointer(type: string, clientX: number, clientY: number): MouseEvent {
   return new MouseEvent(type, { clientX, clientY, bubbles: true });
 }
 
+/** A pointer event with Alt held, to exercise the snap-bypass path. */
+function altPointer(type: string, clientX: number, clientY: number): MouseEvent {
+  return new MouseEvent(type, { clientX, clientY, bubbles: true, altKey: true });
+}
+
 describe("buildTextBoxControl (DOM)", () => {
   it("shows the model text, carries the annotation id, and is positioned in px", () => {
     const container = buildTextBoxControl(box(), page, viewport);
@@ -140,6 +145,57 @@ describe("text box move", () => {
     expect(moves[0]?.origin.y).toBeCloseTo(660);
   });
 
+  it("snaps the committed origin to the grid when snapping is enabled", () => {
+    const original = box();
+    const container = buildTextBoxControl(original, page, viewport);
+    const moves: TextBox[] = [];
+    // An empty sibling list still enables grid snapping.
+    bindTextBoxDrag(container, original, page, viewport, (updated) => moves.push(updated), []);
+
+    const grip = container.querySelector<HTMLElement>(".text-box-grip");
+    grip?.dispatchEvent(pointer("pointerdown", 10, 10));
+    window.dispatchEvent(pointer("pointermove", 110, 50));
+    window.dispatchEvent(pointer("pointerup", 110, 50));
+
+    // Raw move lands at x172; the 10pt grid pulls it to 170.
+    expect(moves[0]?.origin.x).toBeCloseTo(170);
+    expect(moves[0]?.origin.y).toBeCloseTo(660);
+  });
+
+  it("snaps a moved box's left edge to a neighbour's left edge", () => {
+    const original = box();
+    const container = buildTextBoxControl(original, page, viewport);
+    const moves: TextBox[] = [];
+    // Neighbour's left edge at x171; a raw move to x172 aligns the left edges
+    // (1pt away, beating the grid pull to 170).
+    const neighbour = { x: 171, y: 100, width: 50, height: 50 };
+    bindTextBoxDrag(container, original, page, viewport, (updated) => moves.push(updated), [
+      neighbour,
+    ]);
+
+    const grip = container.querySelector<HTMLElement>(".text-box-grip");
+    grip?.dispatchEvent(pointer("pointerdown", 10, 10));
+    window.dispatchEvent(pointer("pointermove", 110, 50));
+    window.dispatchEvent(pointer("pointerup", 110, 50));
+
+    expect(moves[0]?.origin.x).toBeCloseTo(171);
+  });
+
+  it("bypasses snapping while Alt is held on release", () => {
+    const original = box();
+    const container = buildTextBoxControl(original, page, viewport);
+    const moves: TextBox[] = [];
+    bindTextBoxDrag(container, original, page, viewport, (updated) => moves.push(updated), []);
+
+    const grip = container.querySelector<HTMLElement>(".text-box-grip");
+    grip?.dispatchEvent(pointer("pointerdown", 10, 10));
+    window.dispatchEvent(pointer("pointermove", 110, 50));
+    window.dispatchEvent(altPointer("pointerup", 110, 50));
+
+    // Unsnapped: the raw drag result is kept for fine control.
+    expect(moves[0]?.origin.x).toBeCloseTo(172);
+  });
+
   it("treats a grip click with no movement as not a move", () => {
     const original = box();
     const container = buildTextBoxControl(original, page, viewport);
@@ -185,6 +241,22 @@ describe("text box resize", () => {
     // Drag handle right 40 / down 20 at scale 1: width +40, height +20.
     expect(resizes).toHaveLength(1);
     expect(resizes[0]?.width).toBeCloseTo(280);
+    expect(resizes[0]?.height).toBeCloseTo(40);
+  });
+
+  it("snaps the resized edge to the grid when snapping is enabled", () => {
+    const original = box();
+    const container = buildTextBoxControl(original, page, viewport);
+    const resizes: TextBox[] = [];
+    bindTextBoxResize(container, original, page, viewport, (updated) => resizes.push(updated), []);
+
+    const handle = container.querySelector<HTMLElement>(".text-box-resize");
+    handle?.dispatchEvent(pointer("pointerdown", 312, 92));
+    window.dispatchEvent(pointer("pointermove", 352, 112));
+    window.dispatchEvent(pointer("pointerup", 352, 112));
+
+    // Right edge lands at user-x 352, snapped to 350: width 350-72 = 278.
+    expect(resizes[0]?.width).toBeCloseTo(278);
     expect(resizes[0]?.height).toBeCloseTo(40);
   });
 });

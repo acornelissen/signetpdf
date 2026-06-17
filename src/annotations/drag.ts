@@ -8,14 +8,15 @@ import { screenPoint, type ScreenPoint } from "../model/geometry";
 /**
  * Wire a handle for dragging. `onStart` fires on pointer-down (capture initial
  * element state there); `onLive` gets the running screen delta for visual
- * feedback; `onDone` gets the start/end screen points once, unless the pointer
- * never moved (a click).
+ * feedback; `onDone` gets the start/end screen points and the pointer-up event
+ * (so callers can read modifier keys, e.g. to bypass snapping) once, unless the
+ * pointer never moved (a click).
  */
 export function onHandleDrag(
   handle: HTMLElement,
   onStart: () => void,
   onLive: (dx: number, dy: number) => void,
-  onDone: (from: ScreenPoint, to: ScreenPoint) => void,
+  onDone: (from: ScreenPoint, to: ScreenPoint, event: PointerEvent) => void,
 ): void {
   handle.addEventListener("pointerdown", (event) => {
     event.preventDefault();
@@ -33,7 +34,7 @@ export function onHandleDrag(
       if (up.clientX === startX && up.clientY === startY) {
         return; // a click, not a drag
       }
-      onDone(screenPoint(startX, startY), screenPoint(up.clientX, up.clientY));
+      onDone(screenPoint(startX, startY), screenPoint(up.clientX, up.clientY), up);
     };
 
     window.addEventListener("pointermove", onPointerMove);

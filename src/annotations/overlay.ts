@@ -7,8 +7,11 @@ import {
   moveTextBox,
   nudgeFromKey,
   resizeTextBox,
+  snapMovedTextBox,
+  snapResizedTextBox,
   textBoxScreenRect,
   type ScreenRect,
+  type SnapBox,
 } from "./transform";
 
 // The text-annotation overlay: a positioned, editable HTML layer drawn over the
@@ -214,6 +217,7 @@ export function bindTextBoxDrag(
   page: PageGeometry,
   viewport: Viewport,
   onMove: (updated: TextBox) => void,
+  siblings?: readonly SnapBox[],
 ): void {
   const grip = container.querySelector<HTMLElement>(".text-box-grip");
   if (!grip) {
@@ -231,7 +235,14 @@ export function bindTextBoxDrag(
       container.style.left = `${left + dx}px`;
       container.style.top = `${top + dy}px`;
     },
-    (from, to) => onMove(moveTextBox(box, from, to, page, viewport)),
+    (from, to, event) => {
+      let moved = moveTextBox(box, from, to, page, viewport);
+      // Snap to the grid/neighbours unless the user holds Alt for fine control.
+      if (siblings && !event.altKey) {
+        moved = snapMovedTextBox(moved, siblings);
+      }
+      onMove(moved);
+    },
   );
 }
 
@@ -246,6 +257,7 @@ export function bindTextBoxResize(
   page: PageGeometry,
   viewport: Viewport,
   onResize: (updated: TextBox) => void,
+  siblings?: readonly SnapBox[],
 ): void {
   const handle = container.querySelector<HTMLElement>(".text-box-resize");
   if (!handle) {
@@ -263,6 +275,9 @@ export function bindTextBoxResize(
       container.style.width = `${Math.max(1, width + dx)}px`;
       container.style.height = `${Math.max(1, height + dy)}px`;
     },
-    (from, to) => onResize(resizeTextBox(box, from, to, page, viewport)),
+    (from, to, event) => {
+      const resized = resizeTextBox(box, from, to, page, viewport);
+      onResize(siblings && !event.altKey ? snapResizedTextBox(box, resized, siblings) : resized);
+    },
   );
 }

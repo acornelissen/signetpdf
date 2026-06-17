@@ -6,6 +6,7 @@ import {
   type ScreenPoint,
   type UserSpacePoint,
 } from "../model/geometry";
+import { snapMoveDelta, snapResizedBox, snapScaledStamp, type Box } from "./snap";
 
 // Pure geometry for placing and dragging annotations (text boxes and signature
 // stamps). Placement and every drag (move, resize, scale) go through the one
@@ -202,4 +203,57 @@ export function scaleStamp(
   const width = Math.max(MIN_SIZE, stamp.width + dx);
   const factor = width / stamp.width;
   return { ...stamp, width, height: stamp.height * factor };
+}
+
+// --- Snapping adapters -----------------------------------------------------
+// Snapping (snap.ts) is pure user-space Box math; these adapters convert an
+// annotation to a Box, snap it against the sibling boxes, and apply the result
+// back. They live here so the single geometry seam owns the model<->Box mapping.
+// The overlay bindings call them after a move/resize unless the user bypasses
+// snapping by holding the modifier key.
+
+/** A neighbouring annotation's user-space extent, used as snap lines. */
+export type SnapBox = Box;
+
+function boxOf(a: { origin: UserSpacePoint; width: number; height: number }): Box {
+  return { x: a.origin.x, y: a.origin.y, width: a.width, height: a.height };
+}
+
+/** Snap a just-moved text box to the grid or a neighbour's edge. */
+export function snapMovedTextBox(moved: TextBox, siblings: readonly SnapBox[]): TextBox {
+  const { dx, dy } = snapMoveDelta(boxOf(moved), siblings);
+  return { ...moved, origin: userSpacePoint(moved.origin.x + dx, moved.origin.y + dy) };
+}
+
+/** Snap a just-moved signature stamp to the grid or a neighbour's edge. */
+export function snapMovedStamp(
+  moved: SignatureStamp,
+  siblings: readonly SnapBox[],
+): SignatureStamp {
+  const { dx, dy } = snapMoveDelta(boxOf(moved), siblings);
+  return { ...moved, origin: userSpacePoint(moved.origin.x + dx, moved.origin.y + dy) };
+}
+
+/** Snap the edge a text-box resize moved, holding the anchored corner fixed. */
+export function snapResizedTextBox(
+  original: TextBox,
+  resized: TextBox,
+  siblings: readonly SnapBox[],
+): TextBox {
+  const snapped = snapResizedBox(boxOf(original), boxOf(resized), siblings);
+  return {
+    ...resized,
+    origin: userSpacePoint(snapped.x, snapped.y),
+    width: snapped.width,
+    height: snapped.height,
+  };
+}
+
+/** Snap a scaled stamp's right edge to a line, preserving its aspect ratio. */
+export function snapScaledStampBox(
+  scaled: SignatureStamp,
+  siblings: readonly SnapBox[],
+): SignatureStamp {
+  const snapped = snapScaledStamp(boxOf(scaled), siblings);
+  return { ...scaled, width: snapped.width, height: snapped.height };
 }

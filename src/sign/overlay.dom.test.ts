@@ -42,6 +42,11 @@ function pointer(type: string, clientX: number, clientY: number): MouseEvent {
   return new MouseEvent(type, { clientX, clientY, bubbles: true, buttons: 1 });
 }
 
+/** A pointer event with Alt held, to exercise the snap-bypass path. */
+function altPointer(type: string, clientX: number, clientY: number): MouseEvent {
+  return new MouseEvent(type, { clientX, clientY, bubbles: true, buttons: 1, altKey: true });
+}
+
 describe("stamp move", () => {
   it("commits the new origin after dragging the grip", () => {
     const original = stamp();
@@ -58,6 +63,37 @@ describe("stamp move", () => {
     expect(moves).toHaveLength(1);
     expect(moves[0]?.origin.x).toBeCloseTo(172); // +100 at scale 1
     expect(moves[0]?.origin.y).toBeCloseTo(660); // -40 (y inverts)
+  });
+
+  it("snaps the moved origin to the grid when snapping is enabled", () => {
+    const original = stamp();
+    const container = buildStampControl(original, page, viewport);
+    const moves: SignatureStamp[] = [];
+    bindStampDrag(container, original, page, viewport, (updated) => moves.push(updated), []);
+
+    container
+      .querySelector<HTMLElement>(".stamp-grip")
+      ?.dispatchEvent(pointer("pointerdown", 10, 10));
+    window.dispatchEvent(pointer("pointermove", 110, 50));
+    window.dispatchEvent(pointer("pointerup", 110, 50));
+
+    expect(moves[0]?.origin.x).toBeCloseTo(170); // raw 172 -> grid 170
+    expect(moves[0]?.origin.y).toBeCloseTo(660);
+  });
+
+  it("bypasses snapping while Alt is held on release", () => {
+    const original = stamp();
+    const container = buildStampControl(original, page, viewport);
+    const moves: SignatureStamp[] = [];
+    bindStampDrag(container, original, page, viewport, (updated) => moves.push(updated), []);
+
+    container
+      .querySelector<HTMLElement>(".stamp-grip")
+      ?.dispatchEvent(pointer("pointerdown", 10, 10));
+    window.dispatchEvent(pointer("pointermove", 110, 50));
+    window.dispatchEvent(altPointer("pointerup", 110, 50));
+
+    expect(moves[0]?.origin.x).toBeCloseTo(172); // unsnapped
   });
 });
 
@@ -77,6 +113,23 @@ describe("stamp scale", () => {
     expect(scales).toHaveLength(1);
     expect(scales[0]?.width).toBeCloseTo(180);
     expect(scales[0]?.height).toBeCloseTo(90);
+  });
+
+  it("snaps the scaled width to the grid while preserving the aspect ratio", () => {
+    const original = stamp(); // 150 x 75, ratio 0.5
+    const container = buildStampControl(original, page, viewport);
+    const scales: SignatureStamp[] = [];
+    bindStampScale(container, original, page, viewport, (updated) => scales.push(updated), []);
+
+    container
+      .querySelector<HTMLElement>(".stamp-resize")
+      ?.dispatchEvent(pointer("pointerdown", 222, 92));
+    window.dispatchEvent(pointer("pointermove", 252, 92));
+    window.dispatchEvent(pointer("pointerup", 252, 92));
+
+    // Right edge 252 -> grid 250: width 250-72 = 178, height keeps the 0.5 ratio.
+    expect(scales[0]?.width).toBeCloseTo(178);
+    expect(scales[0]?.height).toBeCloseTo(89);
   });
 });
 

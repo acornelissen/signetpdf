@@ -84,6 +84,7 @@ import {
   textBoxInput,
 } from "./annotations/overlay";
 import { attachTextToolbar } from "./annotations/toolbar";
+import type { SnapBox } from "./annotations/transform";
 import { listFormFields, type FormField } from "./forms/fields";
 import { applyFieldValue, bindFieldControl, buildFieldControl } from "./forms/overlay";
 import { hasXfa } from "./forms/xfa";
@@ -589,6 +590,16 @@ function placeFormControls(viewer: Viewer, page: RenderedPage, geometry: PageGeo
   }
 }
 
+/**
+ * The user-space boxes of the other annotations on a page, used as snap lines so
+ * a dragged box can align to its neighbours' edges. Excludes the box itself.
+ */
+function snapSiblings(viewer: Viewer, pageIndex: number, selfId: string): SnapBox[] {
+  return (viewer.model?.annotations ?? [])
+    .filter((a) => a.page === pageIndex && a.id !== selfId)
+    .map((a) => ({ x: a.origin.x, y: a.origin.y, width: a.width, height: a.height }));
+}
+
 /** Place the editable text-box controls for one page, bound back to the model. */
 function placeTextBoxes(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): void {
   const viewport = { scale: viewer.scale };
@@ -609,8 +620,9 @@ function placeTextBoxes(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
       commit(updated);
       void rerender(viewer);
     };
-    bindTextBoxDrag(control, annotation, geometry, viewport, commitAndRerender);
-    bindTextBoxResize(control, annotation, geometry, viewport, commitAndRerender);
+    const siblings = snapSiblings(viewer, page.index, annotation.id);
+    bindTextBoxDrag(control, annotation, geometry, viewport, commitAndRerender, siblings);
+    bindTextBoxResize(control, annotation, geometry, viewport, commitAndRerender, siblings);
     // Keyboard nudge repositions the control live and commits without a
     // re-render, so the box keeps focus between keystrokes.
     bindTextBoxKeyboard(control, annotation, geometry, viewport, commit);
@@ -655,8 +667,9 @@ function placeStamps(viewer: Viewer, page: RenderedPage, geometry: PageGeometry)
         applyEdit(viewer, updateAnnotation(viewer.model, updated));
       }
     };
-    bindStampDrag(control, annotation, geometry, viewport, commitAndRerender);
-    bindStampScale(control, annotation, geometry, viewport, commitAndRerender);
+    const siblings = snapSiblings(viewer, page.index, annotation.id);
+    bindStampDrag(control, annotation, geometry, viewport, commitAndRerender, siblings);
+    bindStampScale(control, annotation, geometry, viewport, commitAndRerender, siblings);
     // Keyboard nudge commits live without a re-render, keeping the stamp focused.
     bindStampKeyboard(control, annotation, geometry, viewport, commit);
     bindStampDelete(control, annotation, (id) => {
