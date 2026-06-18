@@ -11,6 +11,8 @@ import {
   resizeTextBox,
   nudgeFromKey,
   scaleStamp,
+  snapResizedTextBox,
+  snapScaledStampBox,
 } from "./transform";
 
 const page: PageGeometry = { index: 0, width: 612, height: 792, rotation: 0 };
@@ -209,5 +211,24 @@ describe("nudgeFromKey", () => {
   it("ignores non-arrow keys", () => {
     expect(nudgeFromKey(key("a"), 1)).toBeNull();
     expect(nudgeFromKey(key("Enter"), 1)).toBeNull();
+  });
+});
+
+describe("snap adapters respect the minimum box size", () => {
+  it("snapResizedTextBox does not snap a text box below the minimum width", () => {
+    // Anchor at x=3; the dragged right edge (7) snaps out to grid line 10,
+    // which would give width 7 — under the 8pt floor. Must clamp.
+    const original = { ...box(), origin: userSpacePoint(3, 50), width: 20, height: 24 };
+    const resized = { ...box(), origin: userSpacePoint(3, 50), width: 4, height: 24 };
+    const snapped = snapResizedTextBox(original, resized, []);
+    expect(snapped.width).toBeGreaterThanOrEqual(8);
+  });
+
+  it("snapScaledStampBox clamps to the minimum width and preserves the aspect ratio", () => {
+    // ratio 0.5; right edge 7 snaps to grid 10 → width 7 (< 8). Clamp, keep ratio.
+    const scaled = { ...stamp(), origin: userSpacePoint(3, 50), width: 4, height: 2 };
+    const snapped = snapScaledStampBox(scaled, []);
+    expect(snapped.width).toBeGreaterThanOrEqual(8);
+    expect(snapped.height / snapped.width).toBeCloseTo(0.5);
   });
 });

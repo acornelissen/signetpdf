@@ -241,11 +241,13 @@ export function snapResizedTextBox(
   siblings: readonly SnapBox[],
 ): TextBox {
   const snapped = snapResizedBox(boxOf(original), boxOf(resized), siblings);
+  // Snapping can pull an edge onto a line within MIN_SIZE of the anchor; keep the
+  // editor's minimum-size floor that resizeTextBox enforces.
   return {
     ...resized,
     origin: userSpacePoint(snapped.x, snapped.y),
-    width: snapped.width,
-    height: snapped.height,
+    width: Math.max(MIN_SIZE, snapped.width),
+    height: Math.max(MIN_SIZE, snapped.height),
   };
 }
 
@@ -255,5 +257,8 @@ export function snapScaledStampBox(
   siblings: readonly SnapBox[],
 ): SignatureStamp {
   const snapped = snapScaledStamp(boxOf(scaled), siblings);
-  return { ...scaled, width: snapped.width, height: snapped.height };
+  // Clamp to the minimum width, then keep the stamp's aspect ratio.
+  const width = Math.max(MIN_SIZE, snapped.width);
+  const ratio = snapped.height / snapped.width;
+  return { ...scaled, width, height: width * ratio };
 }
