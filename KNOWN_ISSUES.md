@@ -66,3 +66,12 @@ Not yet implemented:
   now rendered as a selectable, copyable text layer (real DOM text rather than
   only canvas pixels), but it is positioned for selection and is not yet
   structured as a semantic reading order for screen readers.
+
+## Dependency advisories
+
+`glib` 0.18 carries a medium advisory (GHSA-wrw7-89jp-8q8g, an unsoundness in
+`VariantStrIter`). It reaches SignetPDF only transitively through Tauri's
+gtk-rs 0.18 stack on **Linux** — the macOS (WKWebView) and Windows (WebView2)
+builds don't pull glib in — and `gtk` 0.18 caps glib at `^0.18`, so it can't be
+moved to the patched 0.20 until Tauri upgrades gtk-rs. The app does not call the
+affected API. It will be bumped when Tauri adopts glib 0.20.
