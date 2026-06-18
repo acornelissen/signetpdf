@@ -1,8 +1,10 @@
 name: Release
 
 # Build installable artefacts for Linux, macOS and Windows when a version tag is
-# pushed, and attach them to a draft GitHub release. Binaries are unsigned for
-# 0.1.0 (see KNOWN_ISSUES.md).
+# pushed, and attach them to a draft GitHub release for review before publishing
+# (see RELEASING.md). The macOS build is universal (Intel + Apple Silicon).
+# Binaries are unsigned and unnotarized — Gatekeeper/SmartScreen will warn (see
+# KNOWN_ISSUES.md); signing and notarization are tracked separately.
 on:
   push:
     tags: ["v*"]
@@ -22,7 +24,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            args: ""
+          # macos-latest runners are Apple Silicon; build a universal binary so
+          # the .dmg/.app also runs on Intel Macs.
+          - os: macos-latest
+            args: "--target universal-apple-darwin"
+          - os: windows-latest
+            args: ""
 
     steps:
       - uses: actions/checkout@v5
@@ -43,6 +53,10 @@ jobs:
       - name: Install node and rust from mise.toml
         uses: jdx/mise-action@v4
 
+      - name: Add macOS universal build targets
+        if: matrix.os == 'macos-latest'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2
         with:
@@ -59,4 +73,5 @@ jobs:
           releaseName: "SignetPDF ${{ github.ref_name }}"
           releaseDraft: true
           prerelease: false
-          # targets default to the bundle config (targets: "all") per OS.
+          args: ${{ matrix.args }}
+          # Bundle targets default to the bundle config (targets: "all") per OS.
