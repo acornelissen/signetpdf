@@ -1,6 +1,7 @@
 import type { Viewport } from "../model/coords";
 import type { PageGeometry, TextBox } from "../model/document";
 import { screenPoint } from "../model/geometry";
+import { positionElement as position } from "../overlay/position";
 import { onHandleDrag } from "./drag";
 import {
   growTextBox,
@@ -10,7 +11,6 @@ import {
   snapMovedTextBox,
   snapResizedTextBox,
   textBoxScreenRect,
-  type ScreenRect,
   type SnapBox,
 } from "./transform";
 
@@ -25,13 +25,6 @@ import {
 
 // Re-exported so callers and tests have one import site for the overlay surface.
 export { textBoxScreenRect, type ScreenRect } from "./transform";
-
-function position(element: HTMLElement, rect: ScreenRect): void {
-  element.style.left = `${rect.left}px`;
-  element.style.top = `${rect.top}px`;
-  element.style.width = `${rect.width}px`;
-  element.style.height = `${rect.height}px`;
-}
 
 /** The inner editable textarea of a text-box container. */
 export function textBoxInput(container: HTMLElement): HTMLTextAreaElement {

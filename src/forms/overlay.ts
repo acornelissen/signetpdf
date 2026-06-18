@@ -1,6 +1,7 @@
 import { modelToScreen, type Viewport } from "../model/coords";
 import type { PageGeometry } from "../model/document";
 import { userSpacePoint } from "../model/geometry";
+import { positionElement as position } from "../overlay/position";
 import type { FieldKind, FormField } from "./fields";
 
 /** A control's CSS box within a page overlay (pixels, top-left origin). */
@@ -34,13 +35,6 @@ export function fieldScreenRect(
     width: Math.abs(corner1.x - corner2.x),
     height: Math.abs(corner1.y - corner2.y),
   };
-}
-
-function position(element: HTMLElement, rect: ScreenRect): void {
-  element.style.left = `${rect.left}px`;
-  element.style.top = `${rect.top}px`;
-  element.style.width = `${rect.width}px`;
-  element.style.height = `${rect.height}px`;
 }
 
 /**

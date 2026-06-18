@@ -1,6 +1,7 @@
 import type { Viewport } from "../model/coords";
 import type { PageGeometry, SignatureStamp } from "../model/document";
 import { screenPoint } from "../model/geometry";
+import { positionElement as position } from "../overlay/position";
 import { onHandleDrag } from "../annotations/drag";
 import {
   annotationScreenRect,
@@ -10,7 +11,6 @@ import {
   scaleStamp,
   snapMovedStamp,
   snapScaledStampBox,
-  type ScreenRect,
   type SnapBox,
 } from "../annotations/transform";
 import { pngBytesToDataUrl } from "./pad";
@@ -20,13 +20,6 @@ import { pngBytesToDataUrl } from "./pad";
 // coordinate seam (annotationScreenRect) and every move, scale (m4-4) and delete
 // routes back to the model. The container carries a move grip, resize handle and
 // delete button so the chrome matches the text boxes.
-
-function position(element: HTMLElement, rect: ScreenRect): void {
-  element.style.left = `${rect.left}px`;
-  element.style.top = `${rect.top}px`;
-  element.style.width = `${rect.width}px`;
-  element.style.height = `${rect.height}px`;
-}
 
 /**
  * Build the control for a signature stamp: a positioned container showing the

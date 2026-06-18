@@ -588,26 +588,49 @@ function placeFormControls(viewer: Viewer, page: RenderedPage, geometry: PageGeo
     bindFieldControl(control, field, (name, value) => {
       if (viewer.model) {
         applyEdit(viewer, setFieldValue(viewer.model, name, value));
-        updateHistoryButtons(viewer);
       }
     });
     page.overlay.appendChild(control);
   }
 }
 
+/** An annotation's id paired with its user-space box, for snap-sibling lookup. */
+interface PageBox {
+  readonly id: string;
+  readonly box: SnapBox;
+}
+
 /**
- * The user-space boxes of the other annotations on a page, used as snap lines so
- * a dragged box can align to its neighbours' edges. Excludes the box itself.
+ * Every annotation's box on a page, built once per layout so each box's snap
+ * siblings can be derived by excluding itself — instead of re-walking the whole
+ * model for every annotation on the page.
  */
-function snapSiblings(viewer: Viewer, pageIndex: number, selfId: string): SnapBox[] {
+function pageAnnotationBoxes(viewer: Viewer, pageIndex: number): PageBox[] {
   return (viewer.model?.annotations ?? [])
-    .filter((a) => a.page === pageIndex && a.id !== selfId)
-    .map((a) => ({ x: a.origin.x, y: a.origin.y, width: a.width, height: a.height }));
+    .filter((a) => a.page === pageIndex)
+    .map((a) => ({
+      id: a.id,
+      box: { x: a.origin.x, y: a.origin.y, width: a.width, height: a.height },
+    }));
+}
+
+/** Snap siblings for one box: every box on the page except the box itself. */
+function siblingsExcept(pageBoxes: readonly PageBox[], selfId: string): SnapBox[] {
+  return pageBoxes.filter((b) => b.id !== selfId).map((b) => b.box);
+}
+
+/** Remove an annotation from the model and re-render; shared by text and stamps. */
+function deleteAnnotation(viewer: Viewer, id: string): void {
+  if (viewer.model) {
+    applyEdit(viewer, removeAnnotation(viewer.model, id));
+    void rerender(viewer);
+  }
 }
 
 /** Place the editable text-box controls for one page, bound back to the model. */
 function placeTextBoxes(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): void {
   const viewport = { scale: viewer.scale };
+  const pageBoxes = pageAnnotationBoxes(viewer, page.index);
   for (const annotation of viewer.model?.annotations ?? []) {
     if (annotation.kind !== "text" || annotation.page !== page.index) {
       continue;
@@ -625,18 +648,13 @@ function placeTextBoxes(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
       commit(updated);
       void rerender(viewer);
     };
-    const siblings = snapSiblings(viewer, page.index, annotation.id);
+    const siblings = siblingsExcept(pageBoxes, annotation.id);
     bindTextBoxDrag(control, annotation, geometry, viewport, commitAndRerender, siblings);
     bindTextBoxResize(control, annotation, geometry, viewport, commitAndRerender, siblings);
     // Keyboard nudge repositions the control live and commits without a
     // re-render, so the box keeps focus between keystrokes.
     bindTextBoxKeyboard(control, annotation, geometry, viewport, commit);
-    bindTextBoxDelete(control, annotation, (id) => {
-      if (viewer.model) {
-        applyEdit(viewer, removeAnnotation(viewer.model, id));
-        void rerender(viewer);
-      }
-    });
+    bindTextBoxDelete(control, annotation, (id) => deleteAnnotation(viewer, id));
     // Formatting toolbar (shown via :focus-within). Changes apply to the live
     // textarea and commit without a re-render, so editing/focus is uninterrupted.
     attachTextToolbar(control, annotation, (updated) => {
@@ -654,6 +672,7 @@ function placeTextBoxes(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
 /** Place the signature-stamp controls for one page, bound back to the model. */
 function placeStamps(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): void {
   const viewport = { scale: viewer.scale };
+  const pageBoxes = pageAnnotationBoxes(viewer, page.index);
   for (const annotation of viewer.model?.annotations ?? []) {
     if (annotation.kind !== "signature" || annotation.page !== page.index) {
       continue;
@@ -672,17 +691,12 @@ function placeStamps(viewer: Viewer, page: RenderedPage, geometry: PageGeometry)
         applyEdit(viewer, updateAnnotation(viewer.model, updated));
       }
     };
-    const siblings = snapSiblings(viewer, page.index, annotation.id);
+    const siblings = siblingsExcept(pageBoxes, annotation.id);
     bindStampDrag(control, annotation, geometry, viewport, commitAndRerender, siblings);
     bindStampScale(control, annotation, geometry, viewport, commitAndRerender, siblings);
     // Keyboard nudge commits live without a re-render, keeping the stamp focused.
     bindStampKeyboard(control, annotation, geometry, viewport, commit);
-    bindStampDelete(control, annotation, (id) => {
-      if (viewer.model) {
-        applyEdit(viewer, removeAnnotation(viewer.model, id));
-        void rerender(viewer);
-      }
-    });
+    bindStampDelete(control, annotation, (id) => deleteAnnotation(viewer, id));
     page.overlay.appendChild(control);
   }
 }
