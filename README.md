@@ -17,6 +17,23 @@ gap. See the build plan in the [beads](https://github.com/gastownhall/beads) tra
 `.beads/` (`bd ready` to list available work), the [changelog](CHANGELOG.md) for release
 history, and [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for current limitations.
 
+## Screenshots
+
+Filling an AcroForm — text, checkbox, radio, dropdown and list fields — with the
+floating dock and the unsaved-changes dot on Save:
+
+![Filling a PDF form in SignetPDF](docs/screenshots/forms.png)
+
+Adding free text, with the inline formatting toolbar (font, size, bold, italic,
+colour, alignment):
+
+![Adding a formatted text annotation](docs/screenshots/text.png)
+
+Drawing a signature to place on the page (or import an image, and save it for
+reuse):
+
+![Drawing a signature](docs/screenshots/signature.png)
+
 ## Requirements
 
 Runtimes are pinned with [mise](https://mise.jdx.dev/):
