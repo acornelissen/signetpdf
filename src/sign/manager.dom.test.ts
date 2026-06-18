@@ -70,6 +70,17 @@ describe("buildSavedSignatureCard (DOM)", () => {
     expect(acts.onDelete).toHaveBeenCalledWith("0000000000000000000000000000000a");
   });
 
+  it("fires delete at most once on repeated confirm clicks", () => {
+    const acts = actions();
+    const card = buildSavedSignatureCard(sig(), 0, acts);
+    const del = card.querySelector<HTMLButtonElement>(".saved-signature-delete");
+    del?.click(); // arm
+    del?.click(); // confirm -> fires
+    del?.click(); // further clicks must not re-fire
+    del?.click();
+    expect(acts.onDelete).toHaveBeenCalledTimes(1);
+  });
+
   it("commits a rename from the inline editor on Enter", () => {
     const acts = actions();
     const card = buildSavedSignatureCard(sig(), 0, acts);

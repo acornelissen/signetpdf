@@ -167,6 +167,7 @@ function buildDeleteControl(
   del.textContent = "Delete";
 
   let armed = false;
+  let fired = false; // latch: the card is about to be removed; never delete twice
   const disarm = (): void => {
     armed = false;
     del.textContent = "Delete";
@@ -174,6 +175,9 @@ function buildDeleteControl(
     del.setAttribute("aria-label", `Delete ${label}`);
   };
   del.addEventListener("click", () => {
+    if (fired) {
+      return;
+    }
     if (!armed) {
       armed = true;
       del.textContent = "Confirm";
@@ -181,6 +185,7 @@ function buildDeleteControl(
       del.setAttribute("aria-label", `Confirm deleting ${label}`);
       return;
     }
+    fired = true;
     actions.onDelete(signature.id);
   });
   // Clicking elsewhere cancels an armed delete so it can't fire by surprise.
