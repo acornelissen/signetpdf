@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-SignetPDF is a minimal, free, cross-platform PDF viewer for filling forms, editing text and signing. The walking skeleton (M0) is under way: the Tauri 2 + Vite + TypeScript app builds and runs, but feature work (PDF rendering, forms, annotations, signing) is still ahead. The work plan is tracked in beads (see Task tracking below). The architecture below is the planned target; build it as the plan describes rather than inventing a different structure.
+SignetPDF is a minimal, free, cross-platform PDF viewer for filling forms, editing text and signing. The Tauri 2 + Vite + TypeScript app is well past the walking skeleton: as of 0.4.0 it renders PDFs (virtualized), fills AcroForm fields, edits formatted text (with a sans/serif/mono font choice), draws/imports and places signatures (with reuse and a manager), and supports selectable text, find-in-document, a custom right-click menu, keyboard move/resize with snapping, undo/redo, and saving via pdf-lib. The main remaining gap is binary signing/notarization plus ongoing polish. Work is tracked in beads (see Task tracking below). The architecture below is the enforced design; follow it rather than inventing a different structure.
 
 ## Task tracking (read before starting work)
 
@@ -72,7 +72,7 @@ The save path loads `sourceBytes` with pdf-lib and applies the model: field valu
 - **PDF.js worker must be correctly bundled** so its path resolves inside the Tauri webview. This is an M0 task flagged "sort now, not later" — a broken worker path is the classic Tauri+PDF.js failure.
 - **Rust owns file I/O.** Tauri commands `open_pdf`, `save_pdf`, `save_pdf_as` do native dialogs and byte read/write; each has a Rust unit test.
 - **Fixtures matter.** `/fixtures` holds a deliberately awkward corpus (linearized PDF, a `/Rotate 90` page, an AcroForm with every field type, a no-forms PDF, an XFA PDF for refusal tests), documented in `fixtures/README`. Tests lean on these.
-- **Binary code-signing/notarization is out of scope for 0.1.0** and documented as a known gap (macOS unnotarized, Windows unsigned).
+- **Binary code-signing/notarization is not done yet** and documented as a known gap (macOS unnotarized, Windows unsigned).
 
 ## Naming
 

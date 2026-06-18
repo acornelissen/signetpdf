@@ -1,11 +1,11 @@
-# Known issues and limitations (0.1.0)
+# Known issues and limitations
 
-SignetPDF 0.1.0 is deliberately small. These are the gaps we know about, with
+SignetPDF is deliberately small. These are the gaps we know about, with
 workarounds where they exist.
 
 ## Unsigned binaries
 
-Binary code-signing and notarization are out of scope for 0.1.0.
+Binary code-signing and notarization are not done yet.
 
 - **macOS:** builds are not notarized, so Gatekeeper shows a warning on first
   launch. Open it with right-click (or Control-click) on the app and choose
@@ -36,26 +36,33 @@ clear message rather than rendered incorrectly.
 
 ## Fonts in drawn text
 
-Free-text annotations are drawn with an embedded subset of Noto Sans, which
-covers Latin, Greek, Cyrillic and common punctuation. Characters outside that
-font's coverage (for example, CJK scripts) may not render in the saved file.
+Text annotations can be drawn in three families — sans, serif, and mono — and
+the matching font is embedded in the saved PDF (Noto Sans, Noto Serif, and Noto
+Sans Mono, with bold and italic variants; mono has no italic and falls back to
+its regular face). Coverage is Latin plus the common scripts those Noto faces
+include. Characters outside that coverage (for example, CJK scripts) may not
+render in the saved file.
 
-## Large documents
+## Saved signatures
 
-Every page is rendered up front; there is no lazy or virtualized rendering yet.
-Very large documents (hundreds of pages) use more memory and open more slowly.
-Virtualized rendering is planned.
+A signature you choose to save for reuse is stored unencrypted as a PNG in the
+app's local data directory. On macOS and Linux the files are restricted to the
+owner (0600); on Windows they use the account's normal file permissions. They
+never leave the device. Delete them from the signature dialog's manager.
 
 ## Accessibility
 
 The app meets a baseline of WCAG 2.2 AA: form controls and annotations carry
-accessible names, controls are keyboard-reachable with visible focus, a selected
-signature can be removed with the Delete key, and colours meet AA contrast.
+accessible names, controls are keyboard-reachable with visible focus, selected
+text boxes and signatures can be moved, resized, and deleted from the keyboard,
+and colours meet AA contrast.
 
 Not yet implemented:
 
-- Arrow-key move and resize of annotations (today, move and resize are
-  pointer-driven; deletion is keyboard-accessible).
-- Creating and placing annotations without a pointer.
-- Exposing the page's text structure to assistive technology (the page is drawn
-  to a canvas).
+- Creating and placing a new annotation without a pointer (creation is still
+  click- or right-click-driven; once placed, an annotation is fully keyboard
+  operable).
+- Full reading-order exposure of the page to assistive technology. Page text is
+  now rendered as a selectable, copyable text layer (real DOM text rather than
+  only canvas pixels), but it is positioned for selection and is not yet
+  structured as a semantic reading order for screen readers.
