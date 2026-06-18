@@ -34,6 +34,33 @@ reuse):
 
 ![Drawing a signature](docs/screenshots/signature.png)
 
+## Install
+
+Prebuilt installers for macOS, Windows and Linux are attached to every
+[release](https://github.com/acornelissen/signetpdf/releases/latest). They are
+**not yet code-signed or notarized**, so your OS will warn on first launch — the
+steps below clear that once. Signing is planned; see
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md). Prefer to build it yourself? See
+[Build](#build).
+
+**macOS** (`.dmg`) — open the disk image and drag SignetPDF into Applications.
+Gatekeeper blocks the unsigned app on first launch; do one of:
+
+- Right-click (Control-click) SignetPDF in Applications → **Open** → **Open**. On
+  macOS 15+ you may instead need **System Settings → Privacy & Security → Open
+  Anyway** after the first attempt.
+- Or clear the quarantine flag in Terminal:
+  `xattr -dr com.apple.quarantine /Applications/SignetPDF.app`
+
+**Windows** (`.msi` or `_x64-setup.exe`) — run the installer. If SmartScreen
+shows "Windows protected your PC", click **More info → Run anyway**.
+
+**Linux** — pick the package for your distribution:
+
+- AppImage: `chmod +x SignetPDF_*_amd64.AppImage && ./SignetPDF_*_amd64.AppImage`
+- Debian/Ubuntu: `sudo apt install ./SignetPDF_*_amd64.deb`
+- Fedora/RHEL: `sudo dnf install ./SignetPDF-*.x86_64.rpm`
+
 ## Requirements
 
 Runtimes are pinned with [mise](https://mise.jdx.dev/):

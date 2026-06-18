@@ -28,8 +28,11 @@ GitHub release for you to review and publish.
 6. The Release workflow builds the bundles (macOS is a universal Intel +
    Apple Silicon binary) and creates a **draft** release named
    `SignetPDF vX.Y.Z` with the installers attached.
-7. Open the draft, paste the changelog section as the release notes, confirm the
-   assets are present for all three OSes, then **Publish**.
+7. Open the draft and write the release notes: paste the changelog section,
+   then append the **install instructions for the unsigned binaries** (per-OS
+   steps for clearing Gatekeeper/SmartScreen — keep them in sync with the
+   "Install" section of the [README](README.md)). Confirm the assets are present
+   for all three OSes, then **Publish**.
 
 ## Notes
 
