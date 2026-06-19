@@ -9,6 +9,11 @@ name: CodeQL
 on:
   push:
     branches: [master]
+    # Docs-only changes have no code to analyse; the weekly schedule still covers them.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
   pull_request:
     branches: [master]
   schedule:

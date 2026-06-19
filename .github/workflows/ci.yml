@@ -3,6 +3,11 @@ name: CI
 on:
   push:
     branches: [master]
+    # Skip the build/test matrix for docs-only changes (no code to verify).
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
   pull_request:
 
 concurrency:
