@@ -927,11 +927,13 @@ body.drag-over::after {
   box-sizing: border-box;
 }
 
-/* Highlight fills the line and multiplies so the glyphs read through it, matching
-   the saved appearance (BlendMode.Multiply in the save projection). */
+/* Highlight fills the line, translucent so the glyphs read through it. The
+   overlay sits in its own stacking context (z-index), so mix-blend-mode would
+   blend against nothing — a real alpha is what keeps the text visible. The saved
+   PDF still uses BlendMode.Multiply, which composites correctly in a viewer. */
 .overlay .markup-quad.markup-highlight {
   background: var(--markup-color);
-  mix-blend-mode: multiply;
+  opacity: 0.4;
 }
 
 .overlay .markup-quad.markup-underline {
