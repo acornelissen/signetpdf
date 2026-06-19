@@ -606,7 +606,7 @@ interface PageBox {
  */
 function pageAnnotationBoxes(viewer: Viewer, pageIndex: number): PageBox[] {
   return (viewer.model?.annotations ?? [])
-    .filter((a) => a.page === pageIndex)
+    .filter((a): a is TextBox | SignatureStamp => a.page === pageIndex && a.kind !== "markup")
     .map((a) => ({
       id: a.id,
       box: { x: a.origin.x, y: a.origin.y, width: a.width, height: a.height },

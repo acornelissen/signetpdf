@@ -46,7 +46,31 @@ export interface SignatureStamp {
   readonly pngBytes: Uint8Array;
 }
 
-export type Annotation = TextBox | SignatureStamp;
+/** The three text-markup styles, all anchored to a run of selected text. */
+export type MarkupStyle = "highlight" | "underline" | "strikethrough";
+
+/** One rectangle of a markup, covering a single line of selected text. */
+export interface MarkupQuad {
+  readonly origin: UserSpacePoint; // bottom-left of the line box, user space
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * A text-markup annotation (highlight / underline / strikethrough). Unlike a
+ * TextBox it is anchored to selected glyphs, so its geometry is a list of quads
+ * — one per wrapped line of the selection — rather than a single box.
+ */
+export interface Markup {
+  readonly kind: "markup";
+  readonly id: string;
+  readonly page: number;
+  readonly style: MarkupStyle;
+  readonly color: string; // "#rrggbb"
+  readonly quads: readonly MarkupQuad[];
+}
+
+export type Annotation = TextBox | SignatureStamp | Markup;
 
 /** Per-page geometry captured from pdf.js, in user-space units. */
 export interface PageGeometry {
@@ -119,7 +143,7 @@ export function setFieldValue(
 }
 
 /** An annotation to add, without its id (the model mints the id centrally). */
-export type NewAnnotation = Omit<TextBox, "id"> | Omit<SignatureStamp, "id">;
+export type NewAnnotation = Omit<TextBox, "id"> | Omit<SignatureStamp, "id"> | Omit<Markup, "id">;
 
 /** Add an annotation with a freshly minted id; returns a new, dirty model. */
 export function addAnnotation(model: DocumentModel, draft: NewAnnotation): DocumentModel {

@@ -158,6 +158,43 @@ describe("annotation mutations", () => {
     expect(removeAnnotation(added, id).annotations).toEqual([]);
   });
 
+  it("adds a text-markup annotation (the markup union arm)", () => {
+    const markup: NewAnnotation = {
+      kind: "markup",
+      page: 0,
+      style: "highlight",
+      color: "#ffeb3b",
+      quads: [{ origin: userSpacePoint(72, 700), width: 120, height: 12 }],
+    };
+    const model = addAnnotation(createModel(bytes), markup);
+    const added = model.annotations[0];
+    expect(added?.kind).toBe("markup");
+    expect(added?.id).toBeTruthy();
+    if (added?.kind !== "markup") {
+      throw new Error("expected a markup annotation");
+    }
+    expect(added.style).toBe("highlight");
+    expect(added.color).toBe("#ffeb3b");
+    expect(added.quads).toHaveLength(1);
+  });
+
+  it("updates a markup annotation's style by id", () => {
+    const markup: NewAnnotation = {
+      kind: "markup",
+      page: 0,
+      style: "underline",
+      color: "#000000",
+      quads: [{ origin: userSpacePoint(10, 20), width: 30, height: 10 }],
+    };
+    const added = addAnnotation(createModel(bytes), markup);
+    const existing = added.annotations[0];
+    if (existing?.kind !== "markup") {
+      throw new Error("expected a markup annotation");
+    }
+    const updated = updateAnnotation(added, { ...existing, style: "strikethrough" });
+    expect(updated.annotations[0]).toMatchObject({ id: existing.id, style: "strikethrough" });
+  });
+
   it("does not mutate the input across add and remove", () => {
     const base = createModel(bytes);
     const added = addAnnotation(base, draft);
