@@ -83,6 +83,7 @@ import {
   buildTextBoxControl,
   textBoxInput,
 } from "./annotations/overlay";
+import { bindMarkupDelete, buildMarkupControl } from "./annotations/markupOverlay";
 import { attachTextToolbar } from "./annotations/toolbar";
 import type { SnapBox } from "./annotations/transform";
 import { listFormFields, type FormField } from "./forms/fields";
@@ -700,6 +701,19 @@ function placeStamps(viewer: Viewer, page: RenderedPage, geometry: PageGeometry)
   }
 }
 
+/** Paint the page's text-markup annotations (highlight/underline/strikethrough). */
+function placeMarkups(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): void {
+  const viewport = { scale: viewer.scale };
+  for (const annotation of viewer.model?.annotations ?? []) {
+    if (annotation.kind !== "markup" || annotation.page !== page.index) {
+      continue;
+    }
+    const control = buildMarkupControl(annotation, geometry, viewport);
+    bindMarkupDelete(control, annotation, (id) => deleteAnnotation(viewer, id));
+    page.overlay.appendChild(control);
+  }
+}
+
 /**
  * Arm the page so an empty-overlay click creates a text box (text tool) or
  * places the pending signature (sign tool). Clicks on existing controls are left
@@ -861,6 +875,7 @@ async function mountPage(
   placeFormControls(viewer, page, geometry);
   placeTextBoxes(viewer, page, geometry);
   placeStamps(viewer, page, geometry);
+  placeMarkups(viewer, page, geometry);
 
   // Selection is a non-critical enhancement: render the text layer after the
   // canvas, and never let a failure block the page from showing.
