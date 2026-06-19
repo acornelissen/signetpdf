@@ -172,6 +172,26 @@ async function fieldValues(bytes: Uint8Array): Promise<Record<string, string | n
   return result;
 }
 
+interface PdfTextAnnotation {
+  subtype?: string;
+  contentsObj?: { str?: string };
+  rect?: number[];
+}
+
+/** Read the /Text (sticky-note) annotations from a saved page via pdf.js. */
+async function noteAnnotations(
+  bytes: Uint8Array,
+  pageNumber: number,
+): Promise<{ contents: string; rect: number[] }[]> {
+  const doc = await loadPdfDocument(bytes);
+  const list = (await (
+    await doc.getPage(pageNumber)
+  ).getAnnotations()) as unknown as PdfTextAnnotation[];
+  return list
+    .filter((a) => a.subtype === "Text")
+    .map((a) => ({ contents: a.contentsObj?.str ?? "", rect: a.rect ?? [] }));
+}
+
 function fixture(name: string): Uint8Array {
   return new Uint8Array(
     readFileSync(fileURLToPath(new URL(`../../fixtures/${name}`, import.meta.url))),
@@ -479,6 +499,35 @@ describe("hexToRgb", () => {
     expect((await filledRects(saved, 2)).some((r) => r.color?.toLowerCase() === "#ff0000")).toBe(
       true,
     );
+  });
+
+  it("writes a sticky note as a /Text annotation whose comment survives re-open", async () => {
+    let model = createModel(fixture("two-page.pdf"));
+    model = addAnnotation(model, {
+      kind: "note",
+      page: 0,
+      origin: userSpacePoint(100, 650),
+      text: "review this paragraph",
+    });
+
+    const notes = await noteAnnotations(await saveModel(model), 1);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.contents).toBe("review this paragraph");
+    expect(notes[0]?.rect[0]).toBeCloseTo(100, 0); // anchored at the origin x
+  });
+
+  it("places each note on its own page", async () => {
+    let model = createModel(fixture("two-page.pdf"));
+    model = addAnnotation(model, {
+      kind: "note",
+      page: 1,
+      origin: userSpacePoint(100, 650),
+      text: "second page note",
+    });
+
+    const saved = await saveModel(model);
+    expect(await noteAnnotations(saved, 1)).toHaveLength(0);
+    expect((await noteAnnotations(saved, 2))[0]?.contents).toBe("second page note");
   });
 
   it("flatten bakes field values into content and removes editable fields", async () => {

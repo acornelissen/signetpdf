@@ -5,12 +5,20 @@ import {
   PDFDropdown,
   PDFOptionList,
   PDFRadioGroup,
+  PDFString,
   PDFTextField,
   rgb,
   type PDFForm,
   type PDFPage,
 } from "pdf-lib";
-import type { Markup, DocumentModel, FieldValue, SignatureStamp, TextBox } from "../model/document";
+import type {
+  Markup,
+  DocumentModel,
+  FieldValue,
+  SignatureStamp,
+  StickyNote,
+  TextBox,
+} from "../model/document";
 import { embedTextFonts, type EmbeddedTextFonts, type TextFontFamilies } from "./font";
 
 /** Inputs the projection needs from outside the pure model (e.g. font bytes). */
@@ -172,6 +180,27 @@ function drawMarkup(page: PDFPage, markup: Markup): void {
   }
 }
 
+/** The user-space size of a sticky note's clickable icon rectangle. */
+const NOTE_ICON_SIZE = 18;
+
+/**
+ * Add one sticky note as a real PDF /Text annotation, so its comment is readable
+ * by any viewer (not flattened into page content). The anchor is the icon rect's
+ * bottom-left in user space, which is pdf-lib's space, so it maps straight through.
+ */
+function addNote(doc: PDFDocument, page: PDFPage, note: StickyNote): void {
+  const { x, y } = note.origin;
+  const annotation = doc.context.obj({
+    Type: "Annot",
+    Subtype: "Text",
+    Name: "Note",
+    Open: false,
+    Rect: [x, y, x + NOTE_ICON_SIZE, y + NOTE_ICON_SIZE],
+    Contents: PDFString.of(note.text),
+  });
+  page.node.addAnnot(doc.context.register(annotation));
+}
+
 /**
  * Embed and draw one signature stamp on its page. The PNG is composited with its
  * transparency intact; the origin is the image's bottom-left in user space, which
@@ -244,6 +273,16 @@ export async function saveModel(
     const page = pages[markup.page];
     if (page) {
       drawMarkup(page, markup);
+    }
+  }
+
+  for (const note of model.annotations) {
+    if (note.kind !== "note") {
+      continue;
+    }
+    const page = pages[note.page];
+    if (page) {
+      addNote(doc, page, note);
     }
   }
 
