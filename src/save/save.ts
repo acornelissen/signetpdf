@@ -1,4 +1,5 @@
 import {
+  BlendMode,
   PDFCheckBox,
   PDFDocument,
   PDFDropdown,
@@ -9,7 +10,7 @@ import {
   type PDFForm,
   type PDFPage,
 } from "pdf-lib";
-import type { DocumentModel, FieldValue, SignatureStamp, TextBox } from "../model/document";
+import type { Markup, DocumentModel, FieldValue, SignatureStamp, TextBox } from "../model/document";
 import { embedTextFonts, type EmbeddedTextFonts, type TextFontFamilies } from "./font";
 
 /** Inputs the projection needs from outside the pure model (e.g. font bytes). */
@@ -135,6 +136,42 @@ function drawTextBox(page: PDFPage, fonts: EmbeddedTextFonts, box: TextBox): voi
   });
 }
 
+/** A markup rule's thickness as a fraction of the line-box height. */
+const MARKUP_RULE_FACTOR = 0.07;
+/** Floor on a markup rule's thickness so it never vanishes on small text. */
+const MARKUP_RULE_MIN = 0.75;
+
+/**
+ * Draw one text-markup annotation as page content, one rectangle per quad. A
+ * highlight fills the whole line box and is composited with Multiply so the
+ * underlying glyphs still read through it; an underline is a thin rule along the
+ * quad's bottom and a strikethrough a thin rule across its middle. Quads are
+ * already the line boxes' bottom-left in user space, so they map straight through.
+ */
+function drawMarkup(page: PDFPage, markup: Markup): void {
+  const { r, g, b } = hexToRgb(markup.color);
+  const color = rgb(r, g, b);
+  for (const quad of markup.quads) {
+    if (markup.style === "highlight") {
+      page.drawRectangle({
+        x: quad.origin.x,
+        y: quad.origin.y,
+        width: quad.width,
+        height: quad.height,
+        color,
+        blendMode: BlendMode.Multiply,
+      });
+      continue;
+    }
+    const thickness = Math.max(MARKUP_RULE_MIN, quad.height * MARKUP_RULE_FACTOR);
+    const y =
+      markup.style === "underline"
+        ? quad.origin.y
+        : quad.origin.y + quad.height / 2 - thickness / 2;
+    page.drawRectangle({ x: quad.origin.x, y, width: quad.width, height: thickness, color });
+  }
+}
+
 /**
  * Embed and draw one signature stamp on its page. The PNG is composited with its
  * transparency intact; the origin is the image's bottom-left in user space, which
@@ -197,6 +234,16 @@ export async function saveModel(
       if (page) {
         drawTextBox(page, fonts, box);
       }
+    }
+  }
+
+  for (const markup of model.annotations) {
+    if (markup.kind !== "markup") {
+      continue;
+    }
+    const page = pages[markup.page];
+    if (page) {
+      drawMarkup(page, markup);
     }
   }
 

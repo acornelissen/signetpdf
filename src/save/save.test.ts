@@ -55,6 +55,59 @@ async function imageTransforms(bytes: Uint8Array, pageNumber: number): Promise<M
   return transforms;
 }
 
+/** A filled rectangle recovered from a page's content stream. */
+interface FilledRect {
+  color: string | null; // most recent fill colour as a hex string
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Every filled path on a page, with its fill colour and absolute (user-space)
+ * bounding box. pdf-lib draws a rectangle as a translate `cm` followed by a
+ * `constructPath` whose local bbox is `[0, 0, w, h]`; we replay the transform
+ * stack to recover the absolute box, mirroring imageTransforms. Used to verify
+ * text-markup quads (highlight/underline/strikethrough) survive a round-trip.
+ */
+async function filledRects(bytes: Uint8Array, pageNumber: number): Promise<FilledRect[]> {
+  const doc = await loadPdfDocument(bytes);
+  const opList = await (await doc.getPage(pageNumber)).getOperatorList();
+  const rects: FilledRect[] = [];
+  let ctm: Matrix = [1, 0, 0, 1, 0, 0];
+  const stack: Matrix[] = [];
+  let fill: string | null = null;
+  for (let i = 0; i < opList.fnArray.length; i += 1) {
+    const fn = opList.fnArray[i];
+    const args = opList.argsArray[i] as unknown;
+    if (fn === OPS.save) {
+      stack.push(ctm);
+    } else if (fn === OPS.restore) {
+      ctm = stack.pop() ?? ctm;
+    } else if (fn === OPS.transform) {
+      ctm = multiply(ctm, args as Matrix);
+    } else if (fn === OPS.setFillRGBColor) {
+      fill = (args as string[])[0] ?? null;
+    } else if (fn === OPS.constructPath) {
+      const minMax = (args as [number, Record<number, number>[], Record<number, number>])[2];
+      const [c0, c1, c2, c3] = [minMax[0]!, minMax[1]!, minMax[2]!, minMax[3]!];
+      const p1x = ctm[0] * c0 + ctm[2] * c1 + ctm[4];
+      const p1y = ctm[1] * c0 + ctm[3] * c1 + ctm[5];
+      const p2x = ctm[0] * c2 + ctm[2] * c3 + ctm[4];
+      const p2y = ctm[1] * c2 + ctm[3] * c3 + ctm[5];
+      rects.push({
+        color: fill,
+        x: Math.min(p1x, p2x),
+        y: Math.min(p1y, p2y),
+        width: Math.abs(p2x - p1x),
+        height: Math.abs(p2y - p1y),
+      });
+    }
+  }
+  return rects;
+}
+
 interface PdfWidget {
   subtype?: string;
   fieldName?: string;
@@ -330,6 +383,102 @@ describe("hexToRgb", () => {
     expect(d).toBeCloseTo(60, 0); // height
     expect(e).toBeCloseTo(100, 0); // origin x
     expect(f).toBeCloseTo(200, 0); // origin y
+  });
+
+  it("draws a highlight as a full-quad filled rectangle that survives re-open", async () => {
+    let model = createModel(fixture("two-page.pdf"));
+    model = addAnnotation(model, {
+      kind: "markup",
+      page: 0,
+      style: "highlight",
+      color: "#ff0000",
+      quads: [{ origin: userSpacePoint(72, 700), width: 120, height: 12 }],
+    });
+
+    const rects = await filledRects(await saveModel(model), 1);
+    const mark = rects.find((r) => r.color?.toLowerCase() === "#ff0000");
+    expect(mark).toBeDefined();
+    expect(mark?.x).toBeCloseTo(72, 0);
+    expect(mark?.y).toBeCloseTo(700, 0);
+    expect(mark?.width).toBeCloseTo(120, 0);
+    expect(mark?.height).toBeCloseTo(12, 0); // full quad height
+  });
+
+  it("draws an underline as a thin rectangle along the bottom of the quad", async () => {
+    let model = createModel(fixture("two-page.pdf"));
+    model = addAnnotation(model, {
+      kind: "markup",
+      page: 0,
+      style: "underline",
+      color: "#0000ff",
+      quads: [{ origin: userSpacePoint(72, 700), width: 120, height: 12 }],
+    });
+
+    const mark = (await filledRects(await saveModel(model), 1)).find(
+      (r) => r.color?.toLowerCase() === "#0000ff",
+    );
+    expect(mark).toBeDefined();
+    expect(mark?.x).toBeCloseTo(72, 0);
+    expect(mark?.width).toBeCloseTo(120, 0);
+    expect(mark?.height).toBeLessThan(3); // thin rule, not the full quad
+    expect(mark?.y).toBeCloseTo(700, 0); // sits at the quad's bottom
+  });
+
+  it("draws a strikethrough rule across the vertical middle of the quad", async () => {
+    let model = createModel(fixture("two-page.pdf"));
+    model = addAnnotation(model, {
+      kind: "markup",
+      page: 0,
+      style: "strikethrough",
+      color: "#00aa00",
+      quads: [{ origin: userSpacePoint(72, 700), width: 120, height: 12 }],
+    });
+
+    const mark = (await filledRects(await saveModel(model), 1)).find(
+      (r) => r.color?.toLowerCase() === "#00aa00",
+    );
+    expect(mark).toBeDefined();
+    expect(mark?.height).toBeLessThan(3);
+    expect(mark?.y).toBeGreaterThan(703); // around the middle (700 + 12/2)
+    expect(mark?.y).toBeLessThan(709);
+  });
+
+  it("draws one rectangle per quad for a multi-line selection", async () => {
+    let model = createModel(fixture("two-page.pdf"));
+    model = addAnnotation(model, {
+      kind: "markup",
+      page: 0,
+      style: "highlight",
+      color: "#ff00ff",
+      quads: [
+        { origin: userSpacePoint(72, 700), width: 120, height: 12 },
+        { origin: userSpacePoint(72, 684), width: 90, height: 12 },
+      ],
+    });
+
+    const marks = (await filledRects(await saveModel(model), 1)).filter(
+      (r) => r.color?.toLowerCase() === "#ff00ff",
+    );
+    expect(marks).toHaveLength(2);
+  });
+
+  it("draws markup only on its own page", async () => {
+    let model = createModel(fixture("two-page.pdf"));
+    model = addAnnotation(model, {
+      kind: "markup",
+      page: 1,
+      style: "highlight",
+      color: "#ff0000",
+      quads: [{ origin: userSpacePoint(72, 700), width: 120, height: 12 }],
+    });
+
+    const saved = await saveModel(model);
+    expect((await filledRects(saved, 1)).some((r) => r.color?.toLowerCase() === "#ff0000")).toBe(
+      false,
+    );
+    expect((await filledRects(saved, 2)).some((r) => r.color?.toLowerCase() === "#ff0000")).toBe(
+      true,
+    );
   });
 
   it("flatten bakes field values into content and removes editable fields", async () => {
