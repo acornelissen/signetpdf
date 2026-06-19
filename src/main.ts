@@ -49,9 +49,10 @@ import {
   type ContextTarget,
   type MenuActionKey,
 } from "./app/contextmenu";
-import { buildDock, DEFAULT_MARKUP_COLOR } from "./app/dock";
+import { buildDock, DEFAULT_MARKUP_COLOR, DEFAULT_SHAPE_COLOR } from "./app/dock";
 import { markupSelection, type MarkupTargetPage } from "./annotations/markup";
-import type { MarkupStyle } from "./model/document";
+import type { MarkupStyle, Shape, ShapeKind } from "./model/document";
+import { screenToModel } from "./model/coords";
 import { icon, type IconName } from "./app/icons";
 import { createToasts, type Toasts, type ToastVariant } from "./app/toast";
 import { createTextBoxAt } from "./annotations/text";
@@ -89,6 +90,7 @@ import { bindMarkupDelete, buildMarkupControl } from "./annotations/markupOverla
 import { bindNoteControl, bindNoteDelete, buildNoteControl } from "./annotations/noteOverlay";
 import { createNoteAt } from "./annotations/note";
 import { bindShapeDelete, buildShapeControl } from "./annotations/shapeOverlay";
+import { createShapeFromDrag } from "./annotations/shape";
 import { attachTextToolbar } from "./annotations/toolbar";
 import type { SnapBox } from "./annotations/transform";
 import { listFormFields, type FormField } from "./forms/fields";
@@ -179,6 +181,12 @@ interface Viewer {
   textTool: boolean;
   // When the note tool is armed, clicking a page drops a sticky note.
   noteTool: boolean;
+  // The shape kind the draw tool is armed with (null = not drawing).
+  shapeTool: ShapeKind | null;
+  // Stroke colour and width for newly drawn shapes; fill is off by default.
+  shapeStroke: string;
+  shapeStrokeWidth: number;
+  shapeFill: string | null;
   // When a signature is armed, clicking a page places it as a stamp.
   pendingStamp: StampImage | null;
   // The colour the next markup (highlight/underline/strikethrough) is drawn in.
@@ -305,6 +313,38 @@ function setupMarkupTools(viewer: Viewer): void {
     if (viewer.mount.contains(range.commonAncestorContainer)) {
       viewer.markupRange = range.cloneRange();
     }
+  });
+}
+
+/**
+ * Wire the shape tools: each kind button toggles the draw tool for that shape,
+ * and the colour swatch opens a native picker that sets the stroke colour for
+ * newly drawn shapes.
+ */
+function setupShapeTools(viewer: Viewer): void {
+  const kinds: ReadonlyArray<{ id: string; kind: ShapeKind }> = [
+    { id: "#shape-rectangle", kind: "rectangle" },
+    { id: "#shape-ellipse", kind: "ellipse" },
+    { id: "#shape-line", kind: "line" },
+    { id: "#shape-arrow", kind: "arrow" },
+  ];
+  for (const { id, kind } of kinds) {
+    document
+      .querySelector<HTMLButtonElement>(id)
+      ?.addEventListener("click", () =>
+        setShapeTool(viewer, viewer.shapeTool === kind ? null : kind),
+      );
+  }
+
+  const swatch = document.querySelector<HTMLButtonElement>("#shape-color");
+  const colorInput = document.querySelector<HTMLInputElement>("#shape-color-input");
+  swatch?.addEventListener("click", () => colorInput?.click());
+  colorInput?.addEventListener("input", () => {
+    if (!colorInput.value) {
+      return;
+    }
+    viewer.shapeStroke = colorInput.value;
+    swatch?.style.setProperty("--markup-color", colorInput.value);
   });
 }
 
@@ -831,6 +871,11 @@ function armCreateTools(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
     const click = screenPoint(event.clientX - rect.left, event.clientY - rect.top);
     const viewport = { scale: viewer.scale };
 
+    if (viewer.shapeTool) {
+      beginShapeDraw(viewer, page, geometry, rect, click);
+      return;
+    }
+
     if (viewer.textTool) {
       applyEdit(viewer, createTextBoxAt(viewer.model, click, geometry, viewport));
       viewer.focusAnnotationId =
@@ -852,6 +897,81 @@ function armCreateTools(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
     }
     void rerender(viewer);
   });
+}
+
+/** Minimum drag distance (screen px) before a shape is committed. */
+const SHAPE_MIN_DRAG = 4;
+
+/**
+ * Run a shape draw: track the pointer from the press, showing a live preview, and
+ * on release commit the shape (start -> end through the seam) unless the drag was
+ * too small. The tool disarms after one shape, matching the other create tools.
+ */
+function beginShapeDraw(
+  viewer: Viewer,
+  page: RenderedPage,
+  geometry: PageGeometry,
+  rect: DOMRect,
+  startClick: ScreenPoint,
+): void {
+  const kind = viewer.shapeTool;
+  if (!kind || !viewer.model) {
+    return;
+  }
+  const viewport = { scale: viewer.scale };
+  let preview: HTMLElement | null = null;
+
+  const draft = (endClick: ScreenPoint): Shape => ({
+    kind: "shape",
+    id: "preview",
+    page: geometry.index,
+    shape: kind,
+    start: screenToModel(startClick, geometry, viewport),
+    end: screenToModel(endClick, geometry, viewport),
+    stroke: viewer.shapeStroke,
+    strokeWidth: viewer.shapeStrokeWidth,
+    fill: viewer.shapeFill,
+  });
+
+  const pointFor = (event: PointerEvent): ScreenPoint =>
+    screenPoint(event.clientX - rect.left, event.clientY - rect.top);
+
+  const onMove = (event: PointerEvent): void => {
+    preview?.remove();
+    preview = buildShapeControl(draft(pointFor(event)), geometry, viewport);
+    preview.classList.add("shape-preview"); // non-interactive while drawing
+    preview.querySelector(".shape-delete")?.remove();
+    page.overlay.appendChild(preview);
+  };
+
+  const onUp = (event: PointerEvent): void => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    preview?.remove();
+    const endClick = pointFor(event);
+    const drag = Math.hypot(endClick.x - startClick.x, endClick.y - startClick.y);
+    if (viewer.model && drag >= SHAPE_MIN_DRAG) {
+      applyEdit(
+        viewer,
+        createShapeFromDrag(
+          viewer.model,
+          kind,
+          viewer.shapeStroke,
+          viewer.shapeStrokeWidth,
+          viewer.shapeFill,
+          startClick,
+          endClick,
+          geometry,
+          viewport,
+        ),
+      );
+    }
+    setShapeTool(viewer, null); // one shape per activation
+    void rerender(viewer);
+  };
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
 }
 
 /** The PDF-user-space placement for a right-click over a rendered page. */
@@ -1198,6 +1318,7 @@ function setTextTool(viewer: Viewer, active: boolean): void {
   if (active) {
     setStampTool(viewer, null); // tools are mutually exclusive
     setNoteTool(viewer, false);
+    setShapeTool(viewer, null);
     notify(viewer, "Click on the page to place a text box. Press Esc to cancel.", "info");
   }
 }
@@ -1212,7 +1333,33 @@ function setNoteTool(viewer: Viewer, active: boolean): void {
   if (active) {
     setTextTool(viewer, false); // tools are mutually exclusive
     setStampTool(viewer, null);
+    setShapeTool(viewer, null);
     notify(viewer, "Click on the page to drop a note. Press Esc to cancel.", "info");
+  }
+}
+
+const SHAPE_TOOL_IDS: Record<ShapeKind, string> = {
+  rectangle: "#shape-rectangle",
+  ellipse: "#shape-ellipse",
+  line: "#shape-line",
+  arrow: "#shape-arrow",
+};
+
+/** Arm or disarm the shape draw tool; a non-null kind means a drag draws it. */
+function setShapeTool(viewer: Viewer, kind: ShapeKind | null): void {
+  viewer.shapeTool = kind;
+  viewer.mount.classList.toggle("tool-shape", kind !== null);
+  // Reflect the armed kind on its button; clear the others.
+  for (const [shapeKind, id] of Object.entries(SHAPE_TOOL_IDS)) {
+    document
+      .querySelector<HTMLButtonElement>(id)
+      ?.setAttribute("aria-pressed", String(shapeKind === kind));
+  }
+  if (kind !== null) {
+    setTextTool(viewer, false); // tools are mutually exclusive
+    setNoteTool(viewer, false);
+    setStampTool(viewer, null);
+    notify(viewer, "Drag on the page to draw. Press Esc to cancel.", "info");
   }
 }
 
@@ -1226,19 +1373,23 @@ function setStampTool(viewer: Viewer, image: StampImage | null): void {
   if (image !== null) {
     setTextTool(viewer, false); // tools are mutually exclusive
     setNoteTool(viewer, false);
+    setShapeTool(viewer, null);
     notify(viewer, "Click on the page to place your signature. Press Esc to cancel.", "info");
   }
 }
 
-/** True while a create tool (text, note or signature) is armed. */
+/** True while a create tool (text, note, shape or signature) is armed. */
 function toolArmed(viewer: Viewer): boolean {
-  return viewer.textTool || viewer.noteTool || viewer.pendingStamp !== null;
+  return (
+    viewer.textTool || viewer.noteTool || viewer.shapeTool !== null || viewer.pendingStamp !== null
+  );
 }
 
 /** Cancel any armed create tool and clear its hint. */
 function cancelTools(viewer: Viewer): void {
   setTextTool(viewer, false);
   setNoteTool(viewer, false);
+  setShapeTool(viewer, null);
   setStampTool(viewer, null);
   viewer.toasts?.clear();
 }
@@ -1697,6 +1848,10 @@ window.addEventListener("DOMContentLoaded", () => {
     scale: 1.25,
     textTool: false,
     noteTool: false,
+    shapeTool: null,
+    shapeStroke: DEFAULT_SHAPE_COLOR,
+    shapeStrokeWidth: 2,
+    shapeFill: null,
     pendingStamp: null,
     markupColor: DEFAULT_MARKUP_COLOR,
     markupRange: null,
@@ -1845,6 +2000,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   setupMarkupTools(viewer);
+  setupShapeTools(viewer);
 
   // The empty-state screen offers the same Open action as the dock.
   document

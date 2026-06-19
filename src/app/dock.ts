@@ -50,6 +50,52 @@ const GROUPS: DockGroup[] = [
 /** The default markup colour: a soft highlighter yellow. */
 export const DEFAULT_MARKUP_COLOR = "#ffeb3b";
 
+/** The default shape stroke colour. */
+export const DEFAULT_SHAPE_COLOR = "#cc0000";
+
+/**
+ * The shapes group: four kind buttons (each arms the draw tool with that shape)
+ * and a stroke-colour swatch. Like the markup group the colour is a swatch button
+ * (keeping the toolbar button-only for roving) backed by a hidden native input.
+ */
+function makeShapeGroup(platform: Platform): HTMLDivElement {
+  const group = document.createElement("div");
+  group.className = "dock-group";
+  group.setAttribute("aria-label", "Shapes");
+
+  group.append(
+    makeButton(
+      { id: "shape-rectangle", name: "square", label: "Draw rectangle", pressed: true },
+      platform,
+    ),
+    makeButton(
+      { id: "shape-ellipse", name: "circle", label: "Draw ellipse", pressed: true },
+      platform,
+    ),
+    makeButton({ id: "shape-line", name: "line", label: "Draw line", pressed: true }, platform),
+    makeButton({ id: "shape-arrow", name: "arrow", label: "Draw arrow", pressed: true }, platform),
+  );
+
+  const swatch = document.createElement("button");
+  swatch.type = "button";
+  swatch.id = "shape-color";
+  swatch.className = "btn-icon markup-color-swatch";
+  swatch.setAttribute("aria-label", "Shape color");
+  swatch.setAttribute("data-tip", "Shape color");
+  swatch.style.setProperty("--markup-color", DEFAULT_SHAPE_COLOR);
+
+  const input = document.createElement("input");
+  input.type = "color";
+  input.id = "shape-color-input";
+  input.className = "markup-color-input";
+  input.value = DEFAULT_SHAPE_COLOR;
+  input.tabIndex = -1;
+  input.setAttribute("aria-hidden", "true");
+
+  group.append(swatch, input);
+  return group;
+}
+
 /**
  * The markup group: three style actions that apply to the current text selection,
  * plus a colour control. The colour is a swatch button (so the toolbar stays
@@ -223,6 +269,7 @@ export function buildDock(platform: Platform): HTMLElement {
     dock.append(makeGroup(group, platform));
   }
   dock.append(makeMarkupGroup(platform));
+  dock.append(makeShapeGroup(platform));
   dock.append(makeOverflow());
   dock.append(makePageGroup());
   dock.append(makeZoomGroup(platform));

@@ -724,8 +724,15 @@ body.drag-over::after {
    text box or signature (text selection is suspended during placement). */
 .viewer.tool-text .overlay,
 .viewer.tool-note .overlay,
+.viewer.tool-shape .overlay,
 .viewer.tool-stamp .overlay {
   pointer-events: auto;
+}
+
+/* The live preview shown while dragging out a shape is non-interactive. */
+.overlay .shape-preview,
+.overlay .shape-preview * {
+  pointer-events: none;
 }
 
 .overlay .field {
