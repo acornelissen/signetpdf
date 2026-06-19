@@ -1515,9 +1515,37 @@ async function fitWidth(viewer: Viewer): Promise<void> {
   await setScale(viewer, fitToWidthScale(width, viewer.mount.clientWidth));
 }
 
-/** Returns false if there are unsaved changes the user chose to keep. */
-function mayDiscard(viewer: Viewer): boolean {
-  return !viewer.model?.dirty || window.confirm("Discard unsaved changes?");
+/**
+ * Show the in-app confirm dialog and resolve true when the user accepts. Used
+ * instead of window.confirm, which the Tauri webview does not render.
+ */
+function confirmDialog(message: string, okLabel: string): Promise<boolean> {
+  const dialog = document.querySelector<HTMLDialogElement>("#confirm-dialog");
+  const messageEl = document.querySelector<HTMLElement>("#confirm-message");
+  const ok = document.querySelector<HTMLButtonElement>("#confirm-ok");
+  if (!dialog || !messageEl || !ok) {
+    return Promise.resolve(false); // no dialog: never silently discard
+  }
+  messageEl.textContent = message;
+  ok.textContent = okLabel;
+  return new Promise((resolve) => {
+    const onClose = (): void => {
+      dialog.removeEventListener("close", onClose);
+      // Submitting the OK button sets returnValue "ok"; Cancel/Escape do not.
+      resolve(dialog.returnValue === "ok");
+    };
+    dialog.addEventListener("close", onClose);
+    dialog.returnValue = "";
+    dialog.showModal();
+  });
+}
+
+/** Resolves false if there are unsaved changes the user chose to keep. */
+async function confirmDiscard(viewer: Viewer): Promise<boolean> {
+  if (!viewer.model?.dirty) {
+    return true;
+  }
+  return confirmDialog("You have unsaved changes. Discard them?", "Discard changes");
 }
 
 /** Arm or disarm the text tool and reflect it on the toolbar and cursor. */
@@ -1973,7 +2001,7 @@ async function openBytes(viewer: Viewer, bytes: Uint8Array, path: string | null)
 }
 
 async function openUserPdf(viewer: Viewer): Promise<void> {
-  if (!mayDiscard(viewer)) {
+  if (!(await confirmDiscard(viewer))) {
     return;
   }
   const opened = await invoke<OpenedPdf | null>("open_pdf");
@@ -2255,9 +2283,9 @@ window.addEventListener("DOMContentLoaded", () => {
   void listen("pdf-drag-over", (event) => {
     document.body.classList.toggle("drag-over", event.payload === true);
   });
-  void listen<OpenedPdf>("pdf-dropped", (event) => {
+  void listen<OpenedPdf>("pdf-dropped", async (event) => {
     document.body.classList.remove("drag-over");
-    if (!mayDiscard(viewer)) {
+    if (!(await confirmDiscard(viewer))) {
       return;
     }
     run(
@@ -2328,13 +2356,22 @@ window.addEventListener("DOMContentLoaded", () => {
   // Intercept the native window close (the title-bar X): if there are unsaved
   // changes, confirm before discarding them. beforeunload does not reliably fire
   // for a Tauri window close, so this is the real guard for the desktop app.
+  let forceClose = false;
   void getCurrentWindow()
-    .onCloseRequested((event) => {
-      if (
-        viewer.model?.dirty &&
-        !window.confirm("You have unsaved changes. Close without saving?")
-      ) {
-        event.preventDefault();
+    .onCloseRequested(async (event) => {
+      if (forceClose || !viewer.model?.dirty) {
+        return; // already confirmed, or nothing unsaved: let the window close
+      }
+      // Stop this close; re-issue it ourselves only if the user confirms. The
+      // confirm is async (an in-app dialog), so preventing now is mandatory.
+      event.preventDefault();
+      const discard = await confirmDialog(
+        "You have unsaved changes. Close without saving?",
+        "Close without saving",
+      );
+      if (discard) {
+        forceClose = true; // the re-issued close passes straight through above
+        await getCurrentWindow().close();
       }
     })
     .catch(() => {

@@ -1395,7 +1395,8 @@ body.drag-over::after {
 /* ---- Dialogs ------------------------------------------------------------- */
 
 .password-dialog,
-.signature-dialog {
+.signature-dialog,
+.confirm-dialog {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
@@ -1404,26 +1405,38 @@ body.drag-over::after {
   color: var(--text);
 }
 
-.password-dialog {
+.password-dialog,
+.confirm-dialog {
   min-width: 20rem;
+  max-width: 26rem;
 }
 
 .password-dialog::backdrop,
-.signature-dialog::backdrop {
+.signature-dialog::backdrop,
+.confirm-dialog::backdrop {
   background: rgba(16, 18, 22, 0.45);
   -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
 }
 
 .password-title,
-.signature-title {
+.signature-title,
+.confirm-title {
   margin: 0 0 var(--space-3);
   font-size: 1.1rem;
 }
 
-.password-message {
+.password-message,
+.confirm-message {
   margin: 0 0 var(--space-3);
   color: var(--text-muted);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .password-input {

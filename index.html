@@ -85,5 +85,20 @@
         <button id="signature-use" class="btn btn-success" type="button">Place signature</button>
       </div>
     </dialog>
+
+    <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title">
+      <form method="dialog" class="confirm-form">
+        <h2 id="confirm-title" class="confirm-title">Unsaved changes</h2>
+        <p id="confirm-message" class="confirm-message"></p>
+        <div class="confirm-actions">
+          <button id="confirm-cancel" class="btn btn-ghost" value="cancel" type="submit">
+            Cancel
+          </button>
+          <button id="confirm-ok" class="btn btn-primary" value="ok" type="submit">
+            Close without saving
+          </button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>
