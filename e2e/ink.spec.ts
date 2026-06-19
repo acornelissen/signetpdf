@@ -53,6 +53,31 @@ test("an ink stroke can be deleted", async ({ page }) => {
   await expect(page.locator(".overlay .ink")).toHaveCount(0);
 });
 
+test("an ink stroke can be moved by dragging it", async ({ page }) => {
+  await drawInk(page, 80);
+  const ink = page.locator(".overlay .ink");
+  const before = (await ink.boundingBox())!;
+  const overlay = (await page.locator(".overlay").first().boundingBox())!;
+  // Press on a vertex of the drawn path (overlay-relative 110,120) and drag.
+  await page.mouse.move(overlay.x + 110, overlay.y + 120);
+  await page.mouse.down();
+  await page.mouse.move(overlay.x + 180, overlay.y + 180, { steps: 10 });
+  await page.mouse.up();
+  const after = (await ink.boundingBox())!;
+  expect(after.x).toBeGreaterThan(before.x + 20);
+});
+
+test("a focused ink stroke moves with the keyboard", async ({ page }) => {
+  await drawInk(page);
+  const ink = page.locator(".overlay .ink");
+  await ink.focus();
+  const before = (await ink.boundingBox())!;
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Shift+ArrowDown");
+  const after = (await ink.boundingBox())!;
+  expect(after.y).toBeGreaterThan(before.y + 4);
+});
+
 test("a single click (no drag) draws nothing", async ({ page }) => {
   await page.locator("#ink-tool").click();
   const box = (await page.locator(".overlay").first().boundingBox())!;

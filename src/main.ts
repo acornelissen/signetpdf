@@ -109,7 +109,12 @@ import {
   buildShapeControl,
 } from "./annotations/shapeOverlay";
 import { createShapeFromDrag } from "./annotations/shape";
-import { bindInkDelete, buildInkControl } from "./annotations/inkOverlay";
+import {
+  bindInkDelete,
+  bindInkDrag,
+  bindInkKeyboard,
+  buildInkControl,
+} from "./annotations/inkOverlay";
 import { createInkFromPath } from "./annotations/ink";
 import { attachTextToolbar } from "./annotations/toolbar";
 import type { SnapBox } from "./annotations/transform";
@@ -947,6 +952,18 @@ function placeInk(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): v
     }
     const control = buildInkControl(annotation, geometry, viewport);
     bindInkDelete(control, annotation, (id) => deleteAnnotation(viewer, id));
+    bindInkDrag(control, annotation, geometry, viewport, (updated) => {
+      if (viewer.model) {
+        applyEdit(viewer, updateAnnotation(viewer.model, updated));
+        void rerender(viewer);
+      }
+    });
+    // Keyboard nudge commits live without a re-render, keeping the stroke focused.
+    bindInkKeyboard(control, annotation, geometry, viewport, (updated) => {
+      if (viewer.model) {
+        applyEdit(viewer, updateAnnotation(viewer.model, updated));
+      }
+    });
     page.overlay.appendChild(control);
   }
 }

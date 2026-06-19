@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { Shape, StickyNote, PageGeometry } from "../model/document";
+import type { Ink, Shape, StickyNote, PageGeometry } from "../model/document";
 import { screenPoint, userSpacePoint } from "../model/geometry";
-import { moveNote, moveShape, resizeShapeEnd } from "./move";
+import { moveInk, moveNote, moveShape, resizeShapeEnd } from "./move";
 
 const page: PageGeometry = { index: 0, width: 612, height: 792, rotation: 0 };
 const viewport = { scale: 1 };
@@ -72,6 +72,24 @@ describe("resizeShapeEnd", () => {
     );
     expect(resized.end).toEqual(userSpacePoint(200, 640)); // end unchanged
     expect(resized.start.y).toBeCloseTo(710, 5);
+  });
+});
+
+describe("moveInk", () => {
+  const ink: Ink = {
+    kind: "ink",
+    id: "k1",
+    page: 0,
+    paths: [[userSpacePoint(72, 700), userSpacePoint(120, 690)], [userSpacePoint(200, 600)]],
+    color: "#1144ff",
+    strokeWidth: 2,
+  };
+
+  it("translates every point of every stroke by the drag delta", () => {
+    const moved = moveInk(ink, screenPoint(100, 100), screenPoint(110, 80), page, viewport);
+    expect(moved.paths[0]?.[0]).toEqual(userSpacePoint(82, 720));
+    expect(moved.paths[0]?.[1]).toEqual(userSpacePoint(130, 710));
+    expect(moved.paths[1]?.[0]).toEqual(userSpacePoint(210, 620));
   });
 });
 

@@ -1,5 +1,5 @@
 import { screenToModel, type Viewport } from "../model/coords";
-import type { PageGeometry, Shape, StickyNote } from "../model/document";
+import type { Ink, PageGeometry, Shape, StickyNote } from "../model/document";
 import { userSpacePoint, type ScreenPoint } from "../model/geometry";
 
 // Move/resize geometry for the point-based annotations (shapes, sticky notes),
@@ -50,6 +50,21 @@ export function resizeShapeEnd(
   const point = which === "start" ? shape.start : shape.end;
   const moved = userSpacePoint(point.x + dx, point.y + dy);
   return which === "start" ? { ...shape, start: moved } : { ...shape, end: moved };
+}
+
+/** Move an ink annotation by a screen drag, shifting every point in user space. */
+export function moveInk(
+  ink: Ink,
+  from: ScreenPoint,
+  to: ScreenPoint,
+  page: PageGeometry,
+  viewport: Viewport,
+): Ink {
+  const { dx, dy } = userDelta(from, to, page, viewport);
+  return {
+    ...ink,
+    paths: ink.paths.map((path) => path.map((point) => userSpacePoint(point.x + dx, point.y + dy))),
+  };
 }
 
 /** Move a sticky note by a screen drag, shifting its anchor in user space. */

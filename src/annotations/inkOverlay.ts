@@ -1,7 +1,10 @@
 import { modelToScreen, type Viewport } from "../model/coords";
 import type { Ink, PageGeometry } from "../model/document";
+import { screenPoint } from "../model/geometry";
 import { positionElement as position } from "../overlay/position";
-import type { ScreenRect } from "./transform";
+import { onHandleDrag } from "./drag";
+import { moveInk } from "./move";
+import { nudgeFromKey, type ScreenRect } from "./transform";
 
 // The freehand-ink overlay: an SVG polyline drawing over the rendered page. Like
 // the other overlays it holds no state — every point is placed through the one
@@ -60,6 +63,10 @@ export function buildInkControl(ink: Ink, page: PageGeometry, viewport: Viewport
   container.className = "ink";
   container.dataset.annotationId = ink.id;
   container.dataset.annotationKind = "ink";
+  // Focusable so the stroke can be selected and moved by keyboard.
+  container.tabIndex = 0;
+  container.setAttribute("role", "group");
+  container.setAttribute("aria-label", "Ink stroke (arrow keys move)");
   position(container, geo.box);
 
   const root = svg("svg", { width: geo.box.width, height: geo.box.height, overflow: "visible" });
@@ -96,4 +103,74 @@ export function bindInkDelete(
 ): void {
   const button = container.querySelector<HTMLButtonElement>(".ink-delete");
   button?.addEventListener("click", () => onDelete(ink.id));
+}
+
+/** Reposition the ink container at the bounding box of its (moved) points. */
+function reposition(
+  container: HTMLElement,
+  ink: Ink,
+  page: PageGeometry,
+  viewport: Viewport,
+): void {
+  position(container, inkScreen(ink, page, viewport).box);
+}
+
+/**
+ * Wire dragging the stroke to move the whole ink annotation. The container
+ * follows the pointer for live feedback; the committed move (every point in user
+ * space) is computed through the seam and pushed to the model on pointer-up.
+ */
+export function bindInkDrag(
+  container: HTMLElement,
+  ink: Ink,
+  page: PageGeometry,
+  viewport: Viewport,
+  onMove: (updated: Ink) => void,
+): void {
+  const body = container.querySelector<SVGElement>(".ink-svg");
+  if (!body) {
+    return;
+  }
+  onHandleDrag(
+    body as unknown as HTMLElement,
+    () => {},
+    (dx, dy) => {
+      container.style.transform = `translate(${dx}px, ${dy}px)`;
+    },
+    (from, to) => {
+      container.style.transform = "";
+      onMove(moveInk(ink, from, to, page, viewport));
+    },
+  );
+}
+
+/**
+ * Wire keyboard move for a focused ink stroke: arrows move it (Shift = 10pt). The
+ * container repositions live and commits on each step (no re-render, so focus is
+ * kept); geometry stays on the seam.
+ */
+export function bindInkKeyboard(
+  container: HTMLElement,
+  ink: Ink,
+  page: PageGeometry,
+  viewport: Viewport,
+  onChange: (updated: Ink) => void,
+): void {
+  let current = ink;
+  container.addEventListener("keydown", (event) => {
+    const nudge = nudgeFromKey(event, viewport.scale);
+    if (!nudge || nudge.kind !== "move") {
+      return;
+    }
+    event.preventDefault();
+    current = moveInk(
+      current,
+      screenPoint(0, 0),
+      screenPoint(nudge.dxScreen, nudge.dyScreen),
+      page,
+      viewport,
+    );
+    reposition(container, current, page, viewport);
+    onChange(current);
+  });
 }
