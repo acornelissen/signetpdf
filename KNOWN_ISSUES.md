@@ -1,6 +1,6 @@
 # Known issues and limitations
 
-SignetPDF is deliberately small. These are the gaps we know about, with
+Ceralo is deliberately small. These are the gaps we know about, with
 workarounds where they exist.
 
 ## Unsigned binaries
@@ -10,7 +10,7 @@ Binary code-signing and notarization are not done yet.
 - **macOS:** builds are not notarized, so Gatekeeper shows a warning on first
   launch. Open it with right-click (or Control-click) on the app and choose
   **Open**, then confirm; or clear the quarantine attribute with
-  `xattr -dr com.apple.quarantine /Applications/SignetPDF.app`.
+  `xattr -dr com.apple.quarantine /Applications/Ceralo.app`.
 - **Windows:** builds are unsigned, so SmartScreen may warn. Choose **More
   info**, then **Run anyway**.
 
@@ -26,7 +26,7 @@ Encrypted PDFs open for viewing and filling:
 **Saving an encrypted PDF is disabled.** The save path uses pdf-lib, which
 cannot decrypt PDF content, so it can neither preserve the encryption nor write
 a valid decrypted copy. Rather than emit a broken or silently unencrypted file,
-SignetPDF refuses to save and says so. To edit and save, remove the password
+Ceralo refuses to save and says so. To edit and save, remove the password
 first (for example, print to PDF) and reopen the result.
 
 ## XFA forms
@@ -70,7 +70,7 @@ Not yet implemented:
 ## Dependency advisories
 
 `glib` 0.18 carries a medium advisory (GHSA-wrw7-89jp-8q8g, an unsoundness in
-`VariantStrIter`). It reaches SignetPDF only transitively through Tauri's
+`VariantStrIter`). It reaches Ceralo only transitively through Tauri's
 gtk-rs 0.18 stack on **Linux** — the macOS (WKWebView) and Windows (WebView2)
 builds don't pull glib in — and `gtk` 0.18 caps glib at `^0.18`, so it can't be
 moved to the patched 0.20 until Tauri upgrades gtk-rs. The app does not call the

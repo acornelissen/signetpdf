@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to SignetPDF! Keep PRs focused and atomic. -->
+<!-- Thanks for contributing to Ceralo! Keep PRs focused and atomic. -->
 
 ## What and why
 

@@ -1,4 +1,4 @@
-# SignetPDF UI redesign — design spec
+# Ceralo UI redesign — design spec
 
 Status: proposed. This is a design document, not implementation. It defines the
 floating dock toolbar, the floating toast/status system, a shared design-token
@@ -116,7 +116,7 @@ Buttons are organized into semantic groups separated by thin vertical dividers
 3. **History** — Undo, Redo
 4. **Zoom** — Zoom out, `100%` readout, Zoom in, Fit width
 
-The product name `SignetPDF` (`<h1>`) leaves the toolbar. It moves to a minimal
+The product name `Ceralo` (`<h1>`) leaves the toolbar. It moves to a minimal
 top-left app title or is dropped from the chrome entirely (title is in the OS
 window frame). Keeping it out of the dock keeps the dock about _actions_.
 

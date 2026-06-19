@@ -59,7 +59,7 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } {
 export class EncryptedSaveError extends Error {
   constructor() {
     super(
-      "SignetPDF can't save changes to an encrypted PDF yet. Remove the password (e.g. print to PDF) and reopen to edit.",
+      "Ceralo can't save changes to an encrypted PDF yet. Remove the password (e.g. print to PDF) and reopen to edit.",
     );
     this.name = "EncryptedSaveError";
   }

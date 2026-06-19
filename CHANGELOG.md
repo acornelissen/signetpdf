@@ -1,15 +1,19 @@
 # Changelog
 
-All notable changes to SignetPDF are documented here.
+All notable changes to Ceralo are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.1] - 2026-06-19
 
 ### Changed
 
-- License: removed the Commons Clause. SignetPDF is now under plain Apache-2.0,
+- Renamed the project from SignetPDF to **Ceralo** to avoid a naming collision
+  with an existing SignetPDF browser extension. This changes the product name,
+  the npm/Cargo package name, the bundle identifier (`org.ceralo`), the window
+  title, and the installer/bundle filenames. No functional change.
+- License: removed the Commons Clause. Ceralo is now under plain Apache-2.0,
   an OSI-approved open-source licence, so it may be used commercially. This also
   makes the project eligible for open-source code-signing programs.
 
@@ -145,10 +149,11 @@ Initial release — the walking skeleton through milestone M5.
 - Native file I/O via Rust commands (open, save, save as) with a path-grant
   allowlist.
 
-[1.0.0]: https://github.com/acornelissen/signetpdf/compare/v0.4.2...v1.0.0
-[0.4.2]: https://github.com/acornelissen/signetpdf/compare/v0.4.1...v0.4.2
-[0.4.1]: https://github.com/acornelissen/signetpdf/compare/v0.4.0...v0.4.1
-[0.4.0]: https://github.com/acornelissen/signetpdf/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/acornelissen/signetpdf/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/acornelissen/signetpdf/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/acornelissen/signetpdf/releases/tag/v0.1.0
+[1.0.1]: https://github.com/acornelissen/ceralo/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/acornelissen/ceralo/compare/v0.4.2...v1.0.0
+[0.4.2]: https://github.com/acornelissen/ceralo/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/acornelissen/ceralo/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/acornelissen/ceralo/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/acornelissen/ceralo/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/acornelissen/ceralo/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/acornelissen/ceralo/releases/tag/v0.1.0

@@ -1,4 +1,4 @@
-// SignetPDF frontend entry point.
+// Ceralo frontend entry point.
 // Configures the pdf.js worker, shows an empty-state screen until the user opens
 // a PDF (Rust open_pdf, or drag-and-drop), then lets them scroll/zoom it and
 // save it back (Rust save_pdf / save_pdf_as). The DocumentModel is the source of
@@ -1980,7 +1980,7 @@ async function openBytes(viewer: Viewer, bytes: Uint8Array, path: string | null)
   if (await hasXfa(bytes)) {
     notify(
       viewer,
-      "This PDF uses an XFA form, which SignetPDF can't edit. It was not opened.",
+      "This PDF uses an XFA form, which Ceralo can't edit. It was not opened.",
       "error",
     );
     return;

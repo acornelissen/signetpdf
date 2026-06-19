@@ -96,7 +96,7 @@ write("xfa.pdf", xfa);
 
 // --- pdf-lib generated -------------------------------------------------------
 
-// An AcroForm with one of every field type SignetPDF supports.
+// An AcroForm with one of every field type Ceralo supports.
 async function buildAcroForm() {
   const doc = await PDFDocument.create();
   const sheet = doc.addPage([612, 792]);

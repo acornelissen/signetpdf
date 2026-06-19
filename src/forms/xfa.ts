@@ -1,7 +1,7 @@
 import { PDFDict, PDFDocument, PDFName } from "pdf-lib";
 
 /**
- * True if the PDF carries an XFA form. SignetPDF only supports AcroForm, so XFA
+ * True if the PDF carries an XFA form. Ceralo only supports AcroForm, so XFA
  * documents are refused rather than half-rendered. Detection is the AcroForm
  * /XFA entry, which is present for both pure and hybrid XFA forms.
  */

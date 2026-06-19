@@ -1,6 +1,6 @@
-# Contributing to SignetPDF
+# Contributing to Ceralo
 
-Thanks for your interest. SignetPDF is a small, free, cross-platform desktop PDF
+Thanks for your interest. Ceralo is a small, free, cross-platform desktop PDF
 app (Tauri 2 + Vite + TypeScript, with a Rust backend). Contributions are
 welcome by fork and pull request.
 
@@ -55,8 +55,8 @@ Only AcroForm PDFs are supported; XFA is detected and refused by design.
 
 ## Reporting bugs and ideas
 
-Open a [GitHub issue](https://github.com/acornelissen/signetpdf/issues) for bugs
-and feature requests, or start a [Discussion](https://github.com/acornelissen/signetpdf/discussions)
+Open a [GitHub issue](https://github.com/acornelissen/ceralo/issues) for bugs
+and feature requests, or start a [Discussion](https://github.com/acornelissen/ceralo/discussions)
 for questions. For security issues, follow [SECURITY.md](SECURITY.md) — do not
 file a public issue.
 

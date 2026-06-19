@@ -1,8 +1,8 @@
-# SignetPDF
+# Ceralo
 
 A minimal, free, cross-platform PDF viewer for filling forms, editing text and signing.
 
-SignetPDF is a desktop app (Tauri 2 + Vite + TypeScript) that opens a PDF, fills its
+Ceralo is a desktop app (Tauri 2 + Vite + TypeScript) that opens a PDF, fills its
 AcroForm fields, adds free-text annotations, and places a visual signature, then saves the
 result back to a real PDF. It is deliberately small: no accounts, no cloud, no telemetry.
 
@@ -22,7 +22,7 @@ history, and [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for current limitations.
 Filling an AcroForm — text, checkbox, radio, dropdown and list fields — with the
 floating dock and the unsaved-changes dot on Save:
 
-![Filling a PDF form in SignetPDF](docs/screenshots/forms.png)
+![Filling a PDF form in Ceralo](docs/screenshots/forms.png)
 
 Adding free text, with the inline formatting toolbar (font, size, bold, italic,
 colour, alignment):
@@ -37,29 +37,29 @@ reuse):
 ## Install
 
 Prebuilt installers for macOS, Windows and Linux are attached to every
-[release](https://github.com/acornelissen/signetpdf/releases/latest). They are
+[release](https://github.com/acornelissen/ceralo/releases/latest). They are
 **not yet code-signed or notarized**, so your OS will warn on first launch — the
 steps below clear that once. Signing is planned; see
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Prefer to build it yourself? See
 [Build](#build).
 
-**macOS** (`.dmg`) — open the disk image and drag SignetPDF into Applications.
+**macOS** (`.dmg`) — open the disk image and drag Ceralo into Applications.
 Gatekeeper blocks the unsigned app on first launch; do one of:
 
-- Right-click (Control-click) SignetPDF in Applications → **Open** → **Open**. On
+- Right-click (Control-click) Ceralo in Applications → **Open** → **Open**. On
   macOS 15+ you may instead need **System Settings → Privacy & Security → Open
   Anyway** after the first attempt.
 - Or clear the quarantine flag in Terminal:
-  `xattr -dr com.apple.quarantine /Applications/SignetPDF.app`
+  `xattr -dr com.apple.quarantine /Applications/Ceralo.app`
 
 **Windows** (`.msi` or `_x64-setup.exe`) — run the installer. If SmartScreen
 shows "Windows protected your PC", click **More info → Run anyway**.
 
 **Linux** — pick the package for your distribution:
 
-- AppImage: `chmod +x SignetPDF_*_amd64.AppImage && ./SignetPDF_*_amd64.AppImage`
-- Debian/Ubuntu: `sudo apt install ./SignetPDF_*_amd64.deb`
-- Fedora/RHEL: `sudo dnf install ./SignetPDF-*.x86_64.rpm`
+- AppImage: `chmod +x Ceralo_*_amd64.AppImage && ./Ceralo_*_amd64.AppImage`
+- Debian/Ubuntu: `sudo apt install ./Ceralo_*_amd64.deb`
+- Fedora/RHEL: `sudo dnf install ./Ceralo-*.x86_64.rpm`
 
 ## Requirements
 
@@ -97,6 +97,6 @@ Binary code-signing and notarization are not done yet: macOS builds are unnotari
 
 ## License
 
-[Apache-2.0](LICENSE), copyright The SignetPDF contributors. You are free to
+[Apache-2.0](LICENSE), copyright The Ceralo contributors. You are free to
 use, modify, and redistribute the software, including commercially, under the
 terms of the licence.

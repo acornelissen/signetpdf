@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-SignetPDF is pre-1.0 and ships fixes only on the latest release. Please make sure
+Ceralo is pre-1.0 and ships fixes only on the latest release. Please make sure
 you are on the most recent version before reporting.
 
 | Version | Supported |
@@ -21,7 +21,7 @@ a few days and will coordinate a fix and disclosure with you.
 
 ## Scope and context
 
-SignetPDF is a local desktop app — no accounts, no servers, no telemetry. Some
+Ceralo is a local desktop app — no accounts, no servers, no telemetry. Some
 properties worth knowing when assessing a report:
 
 - File I/O is performed in the Rust backend behind a small set of Tauri

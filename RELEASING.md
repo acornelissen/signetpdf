@@ -1,6 +1,6 @@
 # Releasing
 
-SignetPDF releases are cut from a version tag. Pushing a `vX.Y.Z` tag triggers
+Ceralo releases are cut from a version tag. Pushing a `vX.Y.Z` tag triggers
 [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds
 the installers on the Linux/macOS/Windows matrix and attaches them to a **draft**
 GitHub release for you to review and publish.
@@ -11,7 +11,7 @@ GitHub release for you to review and publish.
 2. Bump the version in all four places, kept in sync:
    - `package.json`
    - `src-tauri/Cargo.toml`
-   - `src-tauri/Cargo.lock` (the `signetpdf` package entry)
+   - `src-tauri/Cargo.lock` (the `ceralo` package entry)
    - `src-tauri/tauri.conf.json`
      Run `cargo check` in `src-tauri` to confirm the lockfile is consistent.
 3. Update [`CHANGELOG.md`](CHANGELOG.md): add a `## [X.Y.Z] - YYYY-MM-DD` section
@@ -19,7 +19,7 @@ GitHub release for you to review and publish.
 4. Commit as `chore(release): X.Y.Z` and push `master`.
 5. Tag and push:
    ```
-   git tag -a vX.Y.Z -m "SignetPDF X.Y.Z"
+   git tag -a vX.Y.Z -m "Ceralo X.Y.Z"
    git push origin vX.Y.Z
    ```
    Do **not** create the GitHub release by hand — let the workflow own it. (In
@@ -27,7 +27,7 @@ GitHub release for you to review and publish.
    up published rather than as a reviewable draft; avoid that.)
 6. The Release workflow builds the bundles (macOS is a universal Intel +
    Apple Silicon binary) and creates a **draft** release named
-   `SignetPDF vX.Y.Z` with the installers attached.
+   `Ceralo vX.Y.Z` with the installers attached.
 7. Open the draft and write the release notes: paste the changelog section,
    then append the **install instructions for the unsigned binaries** (per-OS
    steps for clearing Gatekeeper/SmartScreen — keep them in sync with the
@@ -46,14 +46,14 @@ There are two independent credentials: a **Developer ID Application certificate*
 (signs the app) and an **App Store Connect API key** (submits it to Apple's
 notary service). Both are required for a notarized release.
 
-| Secret | What it is |
-| --- | --- |
-| `APPLE_CERTIFICATE` | base64 of the `.p12` (Developer ID cert + private key) |
-| `APPLE_CERTIFICATE_PASSWORD` | password set when exporting the `.p12` |
-| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: <Name> (<TeamID>)` |
-| `APPLE_API_ISSUER` | App Store Connect API key Issuer ID (UUID) |
-| `APPLE_API_KEY_ID` | the API key's 10-char Key ID |
-| `APPLE_API_KEY_BASE64` | base64 of the `.p8` API key file |
+| Secret                       | What it is                                             |
+| ---------------------------- | ------------------------------------------------------ |
+| `APPLE_CERTIFICATE`          | base64 of the `.p12` (Developer ID cert + private key) |
+| `APPLE_CERTIFICATE_PASSWORD` | password set when exporting the `.p12`                 |
+| `APPLE_SIGNING_IDENTITY`     | `Developer ID Application: <Name> (<TeamID>)`          |
+| `APPLE_API_ISSUER`           | App Store Connect API key Issuer ID (UUID)             |
+| `APPLE_API_KEY_ID`           | the API key's 10-char Key ID                           |
+| `APPLE_API_KEY_BASE64`       | base64 of the `.p8` API key file                       |
 
 ### Developer ID Application certificate (`APPLE_CERTIFICATE*`)
 
@@ -79,6 +79,7 @@ Requires the paid Apple Developer Program and Account Holder/Admin rights.
 
    The quoted string `find-identity` prints is `APPLE_SIGNING_IDENTITY`; the
    10-char code in its parentheses is your Team ID (also top-right in the portal).
+
 5. Remove the local `.p12` afterward (`rm cert.p12`); keep an offline backup in a
    password manager.
 
@@ -119,7 +120,7 @@ priced for registered businesses.
 **The intended path is the [SignPath Foundation](https://signpath.org/), which
 provides free code signing to qualifying open-source projects** on the cloud
 SignPath.io platform (it has a GitHub Actions integration, so signing happens in
-CI). SignetPDF became eligible when the Commons Clause was dropped — the
+CI). Ceralo became eligible when the Commons Clause was dropped — the
 Foundation requires an OSI-approved open-source licence, which plain Apache-2.0
 is and Apache-2.0 + Commons Clause was not.
 

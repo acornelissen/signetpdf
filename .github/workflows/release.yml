@@ -93,7 +93,7 @@ jobs:
           APPLE_API_KEY_PATH: ${{ runner.temp }}/apple-api-key.p8
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "SignetPDF ${{ github.ref_name }}"
+          releaseName: "Ceralo ${{ github.ref_name }}"
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

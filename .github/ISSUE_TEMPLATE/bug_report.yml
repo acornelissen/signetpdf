@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for the report. For security issues, do **not** file here — see
-        [SECURITY.md](https://github.com/acornelissen/signetpdf/blob/master/SECURITY.md).
+        [SECURITY.md](https://github.com/acornelissen/ceralo/blob/master/SECURITY.md).
   - type: textarea
     id: what-happened
     attributes:
@@ -18,7 +18,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: SignetPDF version
+      label: Ceralo version
       placeholder: e.g. 0.4.1
     validations:
       required: true

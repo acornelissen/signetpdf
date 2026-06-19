@@ -1,6 +1,6 @@
 # Custom right-click context menu
 
-Issue: SignetPDF-gi4
+Issue: Ceralo-gi4
 
 ## Goal
 

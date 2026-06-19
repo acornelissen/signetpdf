@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-SignetPDF is a minimal, free, cross-platform PDF viewer for filling forms, editing text and signing. The Tauri 2 + Vite + TypeScript app is well past the walking skeleton: as of 0.4.0 it renders PDFs (virtualized), fills AcroForm fields, edits formatted text (with a sans/serif/mono font choice), draws/imports and places signatures (with reuse and a manager), and supports selectable text, find-in-document, a custom right-click menu, keyboard move/resize with snapping, undo/redo, and saving via pdf-lib. The main remaining gap is binary signing/notarization plus ongoing polish. Work is tracked in beads (see Task tracking below). The architecture below is the enforced design; follow it rather than inventing a different structure.
+Ceralo is a minimal, free, cross-platform PDF viewer for filling forms, editing text and signing. The Tauri 2 + Vite + TypeScript app is well past the walking skeleton: as of 0.4.0 it renders PDFs (virtualized), fills AcroForm fields, edits formatted text (with a sans/serif/mono font choice), draws/imports and places signatures (with reuse and a manager), and supports selectable text, find-in-document, a custom right-click menu, keyboard move/resize with snapping, undo/redo, and saving via pdf-lib. The main remaining gap is binary signing/notarization plus ongoing polish. Work is tracked in beads (see Task tracking below). The architecture below is the enforced design; follow it rather than inventing a different structure.
 
 ## Task tracking (read before starting work)
 
@@ -76,7 +76,7 @@ The save path loads `sourceBytes` with pdf-lib and applies the model: field valu
 
 ## Naming
 
-Product **SignetPDF**; npm package + repo **signetpdf**; Tauri identifier **org.signetpdf**; window title **SignetPDF**.
+Product **Ceralo**; npm package + repo **ceralo**; Tauri identifier **org.ceralo**; window title **Ceralo**.
 
 ## Git Approach
 
