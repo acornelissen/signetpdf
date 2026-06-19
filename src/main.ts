@@ -49,9 +49,14 @@ import {
   type ContextTarget,
   type MenuActionKey,
 } from "./app/contextmenu";
-import { buildDock, DEFAULT_MARKUP_COLOR, DEFAULT_SHAPE_COLOR } from "./app/dock";
+import {
+  buildDock,
+  DEFAULT_INK_COLOR,
+  DEFAULT_MARKUP_COLOR,
+  DEFAULT_SHAPE_COLOR,
+} from "./app/dock";
 import { markupSelection, type MarkupTargetPage } from "./annotations/markup";
-import type { MarkupStyle, Shape, ShapeKind } from "./model/document";
+import type { Ink, MarkupStyle, Shape, ShapeKind } from "./model/document";
 import { screenToModel } from "./model/coords";
 import { icon, type IconName } from "./app/icons";
 import { createToasts, type Toasts, type ToastVariant } from "./app/toast";
@@ -91,6 +96,8 @@ import { bindNoteControl, bindNoteDelete, buildNoteControl } from "./annotations
 import { createNoteAt } from "./annotations/note";
 import { bindShapeDelete, buildShapeControl } from "./annotations/shapeOverlay";
 import { createShapeFromDrag } from "./annotations/shape";
+import { bindInkDelete, buildInkControl } from "./annotations/inkOverlay";
+import { createInkFromPath } from "./annotations/ink";
 import { attachTextToolbar } from "./annotations/toolbar";
 import type { SnapBox } from "./annotations/transform";
 import { listFormFields, type FormField } from "./forms/fields";
@@ -187,6 +194,10 @@ interface Viewer {
   shapeStroke: string;
   shapeStrokeWidth: number;
   shapeFill: string | null;
+  // When the ink tool is armed, dragging on a page draws a freehand stroke.
+  inkTool: boolean;
+  inkColor: string;
+  inkStrokeWidth: number;
   // When a signature is armed, clicking a page places it as a stamp.
   pendingStamp: StampImage | null;
   // The colour the next markup (highlight/underline/strikethrough) is drawn in.
@@ -344,6 +355,27 @@ function setupShapeTools(viewer: Viewer): void {
       return;
     }
     viewer.shapeStroke = colorInput.value;
+    swatch?.style.setProperty("--markup-color", colorInput.value);
+  });
+}
+
+/**
+ * Wire the ink tool: the pen button toggles the freehand draw tool, and the
+ * colour swatch opens a native picker that sets the colour for new strokes.
+ */
+function setupInkTools(viewer: Viewer): void {
+  document
+    .querySelector<HTMLButtonElement>("#ink-tool")
+    ?.addEventListener("click", () => setInkTool(viewer, !viewer.inkTool));
+
+  const swatch = document.querySelector<HTMLButtonElement>("#ink-color");
+  const colorInput = document.querySelector<HTMLInputElement>("#ink-color-input");
+  swatch?.addEventListener("click", () => colorInput?.click());
+  colorInput?.addEventListener("input", () => {
+    if (!colorInput.value) {
+      return;
+    }
+    viewer.inkColor = colorInput.value;
     swatch?.style.setProperty("--markup-color", colorInput.value);
   });
 }
@@ -844,6 +876,19 @@ function placeShapes(viewer: Viewer, page: RenderedPage, geometry: PageGeometry)
   }
 }
 
+/** Paint the page's freehand ink annotations. */
+function placeInk(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): void {
+  const viewport = { scale: viewer.scale };
+  for (const annotation of viewer.model?.annotations ?? []) {
+    if (annotation.kind !== "ink" || annotation.page !== page.index) {
+      continue;
+    }
+    const control = buildInkControl(annotation, geometry, viewport);
+    bindInkDelete(control, annotation, (id) => deleteAnnotation(viewer, id));
+    page.overlay.appendChild(control);
+  }
+}
+
 /** Paint the page's text-markup annotations (highlight/underline/strikethrough). */
 function placeMarkups(viewer: Viewer, page: RenderedPage, geometry: PageGeometry): void {
   const viewport = { scale: viewer.scale };
@@ -873,6 +918,11 @@ function armCreateTools(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
 
     if (viewer.shapeTool) {
       beginShapeDraw(viewer, page, geometry, rect, click);
+      return;
+    }
+
+    if (viewer.inkTool) {
+      beginInkDraw(viewer, page, geometry, rect, click);
       return;
     }
 
@@ -967,6 +1017,85 @@ function beginShapeDraw(
       );
     }
     setShapeTool(viewer, null); // one shape per activation
+    void rerender(viewer);
+  };
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+
+/** Minimum pointer travel (screen px) between captured ink points. */
+const INK_MIN_STEP = 2;
+
+/**
+ * Run a freehand ink draw: capture the pointer path from the press (thinned to a
+ * minimum step so the stroke stays compact), show a live preview, and on release
+ * commit the stroke through the seam. A path of fewer than two points is dropped.
+ * The tool disarms after one stroke, matching the other create tools.
+ */
+function beginInkDraw(
+  viewer: Viewer,
+  page: RenderedPage,
+  geometry: PageGeometry,
+  rect: DOMRect,
+  startClick: ScreenPoint,
+): void {
+  if (!viewer.inkTool || !viewer.model) {
+    return;
+  }
+  const viewport = { scale: viewer.scale };
+  const points: ScreenPoint[] = [startClick];
+  let preview: HTMLElement | null = null;
+
+  const pointFor = (event: PointerEvent): ScreenPoint =>
+    screenPoint(event.clientX - rect.left, event.clientY - rect.top);
+
+  const repaint = (): void => {
+    preview?.remove();
+    if (points.length < 2) {
+      return;
+    }
+    const draft: Ink = {
+      kind: "ink",
+      id: "preview",
+      page: geometry.index,
+      paths: [points.map((p) => screenToModel(p, geometry, viewport))],
+      color: viewer.inkColor,
+      strokeWidth: viewer.inkStrokeWidth,
+    };
+    preview = buildInkControl(draft, geometry, viewport);
+    preview.classList.add("ink-preview");
+    preview.querySelector(".ink-delete")?.remove();
+    page.overlay.appendChild(preview);
+  };
+
+  const onMove = (event: PointerEvent): void => {
+    const next = pointFor(event);
+    const last = points[points.length - 1]!;
+    if (Math.hypot(next.x - last.x, next.y - last.y) >= INK_MIN_STEP) {
+      points.push(next);
+      repaint();
+    }
+  };
+
+  const onUp = (): void => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    preview?.remove();
+    if (viewer.model && points.length >= 2) {
+      applyEdit(
+        viewer,
+        createInkFromPath(
+          viewer.model,
+          points,
+          viewer.inkColor,
+          viewer.inkStrokeWidth,
+          geometry,
+          viewport,
+        ),
+      );
+    }
+    setInkTool(viewer, false); // one stroke per activation
     void rerender(viewer);
   };
 
@@ -1105,6 +1234,7 @@ async function mountPage(
   placeStamps(viewer, page, geometry);
   placeMarkups(viewer, page, geometry);
   placeShapes(viewer, page, geometry);
+  placeInk(viewer, page, geometry);
   placeNotes(viewer, page, geometry);
 
   // Selection is a non-critical enhancement: render the text layer after the
@@ -1319,7 +1449,24 @@ function setTextTool(viewer: Viewer, active: boolean): void {
     setStampTool(viewer, null); // tools are mutually exclusive
     setNoteTool(viewer, false);
     setShapeTool(viewer, null);
+    setInkTool(viewer, false);
     notify(viewer, "Click on the page to place a text box. Press Esc to cancel.", "info");
+  }
+}
+
+/** Arm or disarm the freehand ink tool and reflect it on the toolbar and cursor. */
+function setInkTool(viewer: Viewer, active: boolean): void {
+  viewer.inkTool = active;
+  viewer.mount.classList.toggle("tool-ink", active);
+  document
+    .querySelector<HTMLButtonElement>("#ink-tool")
+    ?.setAttribute("aria-pressed", String(active));
+  if (active) {
+    setTextTool(viewer, false); // tools are mutually exclusive
+    setNoteTool(viewer, false);
+    setShapeTool(viewer, null);
+    setStampTool(viewer, null);
+    notify(viewer, "Drag on the page to draw freehand. Press Esc to cancel.", "info");
   }
 }
 
@@ -1334,6 +1481,7 @@ function setNoteTool(viewer: Viewer, active: boolean): void {
     setTextTool(viewer, false); // tools are mutually exclusive
     setStampTool(viewer, null);
     setShapeTool(viewer, null);
+    setInkTool(viewer, false);
     notify(viewer, "Click on the page to drop a note. Press Esc to cancel.", "info");
   }
 }
@@ -1359,6 +1507,7 @@ function setShapeTool(viewer: Viewer, kind: ShapeKind | null): void {
     setTextTool(viewer, false); // tools are mutually exclusive
     setNoteTool(viewer, false);
     setStampTool(viewer, null);
+    setInkTool(viewer, false);
     notify(viewer, "Drag on the page to draw. Press Esc to cancel.", "info");
   }
 }
@@ -1374,14 +1523,19 @@ function setStampTool(viewer: Viewer, image: StampImage | null): void {
     setTextTool(viewer, false); // tools are mutually exclusive
     setNoteTool(viewer, false);
     setShapeTool(viewer, null);
+    setInkTool(viewer, false);
     notify(viewer, "Click on the page to place your signature. Press Esc to cancel.", "info");
   }
 }
 
-/** True while a create tool (text, note, shape or signature) is armed. */
+/** True while a create tool (text, note, shape, ink or signature) is armed. */
 function toolArmed(viewer: Viewer): boolean {
   return (
-    viewer.textTool || viewer.noteTool || viewer.shapeTool !== null || viewer.pendingStamp !== null
+    viewer.textTool ||
+    viewer.noteTool ||
+    viewer.shapeTool !== null ||
+    viewer.inkTool ||
+    viewer.pendingStamp !== null
   );
 }
 
@@ -1390,6 +1544,7 @@ function cancelTools(viewer: Viewer): void {
   setTextTool(viewer, false);
   setNoteTool(viewer, false);
   setShapeTool(viewer, null);
+  setInkTool(viewer, false);
   setStampTool(viewer, null);
   viewer.toasts?.clear();
 }
@@ -1852,6 +2007,9 @@ window.addEventListener("DOMContentLoaded", () => {
     shapeStroke: DEFAULT_SHAPE_COLOR,
     shapeStrokeWidth: 2,
     shapeFill: null,
+    inkTool: false,
+    inkColor: DEFAULT_INK_COLOR,
+    inkStrokeWidth: 2,
     pendingStamp: null,
     markupColor: DEFAULT_MARKUP_COLOR,
     markupRange: null,
@@ -2001,6 +2159,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   setupMarkupTools(viewer);
   setupShapeTools(viewer);
+  setupInkTools(viewer);
 
   // The empty-state screen offers the same Open action as the dock.
   document

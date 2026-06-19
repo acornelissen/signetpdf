@@ -53,6 +53,43 @@ export const DEFAULT_MARKUP_COLOR = "#ffeb3b";
 /** The default shape stroke colour. */
 export const DEFAULT_SHAPE_COLOR = "#cc0000";
 
+/** The default freehand-ink colour. */
+export const DEFAULT_INK_COLOR = "#1144ff";
+
+/**
+ * The draw group: a freehand pen toggle and an ink-colour swatch (same swatch +
+ * hidden-input pattern as the other colour controls, keeping the toolbar
+ * button-only for the roving tab order).
+ */
+function makeInkGroup(platform: Platform): HTMLDivElement {
+  const group = document.createElement("div");
+  group.className = "dock-group";
+  group.setAttribute("aria-label", "Draw");
+
+  group.append(
+    makeButton({ id: "ink-tool", name: "pen", label: "Freehand draw", pressed: true }, platform),
+  );
+
+  const swatch = document.createElement("button");
+  swatch.type = "button";
+  swatch.id = "ink-color";
+  swatch.className = "btn-icon markup-color-swatch";
+  swatch.setAttribute("aria-label", "Ink color");
+  swatch.setAttribute("data-tip", "Ink color");
+  swatch.style.setProperty("--markup-color", DEFAULT_INK_COLOR);
+
+  const input = document.createElement("input");
+  input.type = "color";
+  input.id = "ink-color-input";
+  input.className = "markup-color-input";
+  input.value = DEFAULT_INK_COLOR;
+  input.tabIndex = -1;
+  input.setAttribute("aria-hidden", "true");
+
+  group.append(swatch, input);
+  return group;
+}
+
 /**
  * The shapes group: four kind buttons (each arms the draw tool with that shape)
  * and a stroke-colour swatch. Like the markup group the colour is a swatch button
@@ -270,6 +307,7 @@ export function buildDock(platform: Platform): HTMLElement {
   }
   dock.append(makeMarkupGroup(platform));
   dock.append(makeShapeGroup(platform));
+  dock.append(makeInkGroup(platform));
   dock.append(makeOverflow());
   dock.append(makePageGroup());
   dock.append(makeZoomGroup(platform));

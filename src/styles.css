@@ -725,6 +725,7 @@ body.drag-over::after {
 .viewer.tool-text .overlay,
 .viewer.tool-note .overlay,
 .viewer.tool-shape .overlay,
+.viewer.tool-ink .overlay,
 .viewer.tool-stamp .overlay {
   pointer-events: auto;
 }
@@ -733,6 +734,57 @@ body.drag-over::after {
 .overlay .shape-preview,
 .overlay .shape-preview * {
   pointer-events: none;
+}
+
+/* Freehand ink: an SVG polyline over the page, mirroring the shape overlay. */
+.overlay .ink {
+  position: absolute;
+  pointer-events: none;
+}
+
+.overlay .ink-svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.overlay .ink-svg > * {
+  pointer-events: visiblePainted;
+}
+
+.overlay .ink-preview,
+.overlay .ink-preview * {
+  pointer-events: none;
+}
+
+.overlay .ink-delete {
+  position: absolute;
+  top: -14px;
+  right: -1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 14px;
+  padding: 0;
+  border: 1px solid var(--danger);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: var(--danger);
+  color: var(--on-accent);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.4;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: opacity 120ms ease;
+}
+
+.overlay .ink-delete:hover,
+.overlay .ink-delete:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .overlay .field {
