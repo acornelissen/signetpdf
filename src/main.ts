@@ -16,6 +16,7 @@ import monoRegularUrl from "./assets/fonts/NotoSansMono-Regular.ttf?url";
 import monoBoldUrl from "./assets/fonts/NotoSansMono-Bold.ttf?url";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import {
   createModel,
@@ -2316,11 +2317,28 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Warn before leaving with unsaved changes.
+  // Warn before leaving with unsaved changes (browser-style unload, e.g. reload).
   window.addEventListener("beforeunload", (event) => {
     if (viewer.model?.dirty) {
       event.preventDefault();
       event.returnValue = "";
     }
   });
+
+  // Intercept the native window close (the title-bar X): if there are unsaved
+  // changes, confirm before discarding them. beforeunload does not reliably fire
+  // for a Tauri window close, so this is the real guard for the desktop app.
+  void getCurrentWindow()
+    .onCloseRequested((event) => {
+      if (
+        viewer.model?.dirty &&
+        !window.confirm("You have unsaved changes. Close without saving?")
+      ) {
+        event.preventDefault();
+      }
+    })
+    .catch(() => {
+      // Not running in a Tauri window (e.g. a plain browser/test harness); the
+      // beforeunload guard above still applies.
+    });
 });
