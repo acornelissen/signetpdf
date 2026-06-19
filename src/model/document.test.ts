@@ -212,6 +212,50 @@ describe("annotation mutations", () => {
     expect(updated.annotations[0]).toMatchObject({ id: existing.id, text: "new" });
   });
 
+  it("adds a shape annotation (the shape union arm)", () => {
+    const shape: NewAnnotation = {
+      kind: "shape",
+      page: 0,
+      shape: "rectangle",
+      start: userSpacePoint(72, 700),
+      end: userSpacePoint(200, 640),
+      stroke: "#cc0000",
+      strokeWidth: 1.5,
+      fill: null,
+    };
+    const model = addAnnotation(createModel(bytes), shape);
+    const added = model.annotations[0];
+    expect(added?.kind).toBe("shape");
+    expect(added?.id).toBeTruthy();
+    if (added?.kind !== "shape") {
+      throw new Error("expected a shape annotation");
+    }
+    expect(added.shape).toBe("rectangle");
+    expect(added.stroke).toBe("#cc0000");
+    expect(added.fill).toBeNull();
+    expect(added.start).toEqual(userSpacePoint(72, 700));
+  });
+
+  it("updates a shape's fill by id", () => {
+    const shape: NewAnnotation = {
+      kind: "shape",
+      page: 0,
+      shape: "ellipse",
+      start: userSpacePoint(10, 20),
+      end: userSpacePoint(50, 60),
+      stroke: "#000000",
+      strokeWidth: 1,
+      fill: null,
+    };
+    const added = addAnnotation(createModel(bytes), shape);
+    const existing = added.annotations[0];
+    if (existing?.kind !== "shape") {
+      throw new Error("expected a shape annotation");
+    }
+    const updated = updateAnnotation(added, { ...existing, fill: "#ffff00" });
+    expect(updated.annotations[0]).toMatchObject({ id: existing.id, fill: "#ffff00" });
+  });
+
   it("updates a markup annotation's style by id", () => {
     const markup: NewAnnotation = {
       kind: "markup",

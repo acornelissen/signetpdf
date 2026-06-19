@@ -83,7 +83,28 @@ export interface StickyNote {
   readonly text: string;
 }
 
-export type Annotation = TextBox | SignatureStamp | Markup | StickyNote;
+/** The four drawable shapes. Rectangle/ellipse can be filled; line/arrow cannot. */
+export type ShapeKind = "rectangle" | "ellipse" | "line" | "arrow";
+
+/**
+ * A drawn shape. Defined by two user-space points so direction is preserved:
+ * line/arrow run start -> end (arrowhead at end), and rectangle/ellipse take the
+ * bounding box of the two points. Stroke is always present; fill is optional and
+ * only meaningful for rectangle/ellipse (null = no fill).
+ */
+export interface Shape {
+  readonly kind: "shape";
+  readonly id: string;
+  readonly page: number;
+  readonly shape: ShapeKind;
+  readonly start: UserSpacePoint;
+  readonly end: UserSpacePoint;
+  readonly stroke: string; // "#rrggbb"
+  readonly strokeWidth: number; // user-space points
+  readonly fill: string | null; // "#rrggbb" or null for no fill
+}
+
+export type Annotation = TextBox | SignatureStamp | Markup | StickyNote | Shape;
 
 /** Per-page geometry captured from pdf.js, in user-space units. */
 export interface PageGeometry {
@@ -160,7 +181,8 @@ export type NewAnnotation =
   | Omit<TextBox, "id">
   | Omit<SignatureStamp, "id">
   | Omit<Markup, "id">
-  | Omit<StickyNote, "id">;
+  | Omit<StickyNote, "id">
+  | Omit<Shape, "id">;
 
 /** Add an annotation with a freshly minted id; returns a new, dirty model. */
 export function addAnnotation(model: DocumentModel, draft: NewAnnotation): DocumentModel {
