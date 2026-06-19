@@ -41,9 +41,18 @@ async function selectFirstLine(page: import("@playwright/test").Page): Promise<v
   expect(selected.trim().length).toBeGreaterThan(0);
 }
 
+/** Open the Highlight popover and apply the given markup style to the selection. */
+async function applyMarkup(
+  page: import("@playwright/test").Page,
+  style: "highlight" | "underline" | "strikethrough",
+): Promise<void> {
+  await page.locator("#highlight-menu").click();
+  await page.locator(`#markup-${style}`).click();
+}
+
 test("highlighting a selection paints a markup over the page", async ({ page }) => {
   await selectFirstLine(page);
-  await page.locator("#markup-highlight").click();
+  await applyMarkup(page, "highlight");
 
   const markup = page.locator(".overlay .markup.markup-highlight");
   await expect(markup).toHaveCount(1);
@@ -52,17 +61,17 @@ test("highlighting a selection paints a markup over the page", async ({ page }) 
 
 test("underline and strikethrough each add their own markup", async ({ page }) => {
   await selectFirstLine(page);
-  await page.locator("#markup-underline").click();
+  await applyMarkup(page, "underline");
   await expect(page.locator(".overlay .markup.markup-underline")).toHaveCount(1);
 
   await selectFirstLine(page);
-  await page.locator("#markup-strikethrough").click();
+  await applyMarkup(page, "strikethrough");
   await expect(page.locator(".overlay .markup.markup-strikethrough")).toHaveCount(1);
 });
 
 test("a painted markup can be deleted from the overlay", async ({ page }) => {
   await selectFirstLine(page);
-  await page.locator("#markup-highlight").click();
+  await applyMarkup(page, "highlight");
   await expect(page.locator(".overlay .markup")).toHaveCount(1);
 
   await page.locator(".overlay .markup .markup-delete").click();

@@ -29,6 +29,7 @@ test.beforeEach(async ({ page }) => {
 
 // Create a text box with the text tool; it opens focused for editing.
 async function createTextBox(page: import("@playwright/test").Page) {
+  await page.locator("#draw-menu").click(); // the text tool lives in this popover
   await page.locator("#text-tool").click();
   const pageBox = (await page.locator(".page-container").first().boundingBox())!;
   await page.mouse.click(pageBox.x + 160, pageBox.y + 160);

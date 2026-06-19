@@ -30,6 +30,7 @@ test.beforeEach(async ({ page }) => {
 
 /** Arm the pen and drag a freehand path across the first page. */
 async function drawInk(page: import("@playwright/test").Page, top = 80): Promise<void> {
+  await page.locator("#draw-menu").click();
   await page.locator("#ink-tool").click();
   const box = (await page.locator(".overlay").first().boundingBox())!;
   await page.mouse.move(box.x + 50, box.y + top);
@@ -79,6 +80,7 @@ test("a focused ink stroke moves with the keyboard", async ({ page }) => {
 });
 
 test("a single click (no drag) draws nothing", async ({ page }) => {
+  await page.locator("#draw-menu").click();
   await page.locator("#ink-tool").click();
   const box = (await page.locator(".overlay").first().boundingBox())!;
   await page.mouse.click(box.x + 90, box.y + 90);

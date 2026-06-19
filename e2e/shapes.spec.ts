@@ -28,12 +28,21 @@ test.beforeEach(async ({ page }) => {
   await page.waitForSelector(".textLayer span");
 });
 
+/** Open the Drawing & annotation popover if it is not already open. */
+async function openDraw(page: import("@playwright/test").Page): Promise<void> {
+  const toggle = page.locator("#draw-menu");
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+    await toggle.click();
+  }
+}
+
 /** Arm a shape tool and drag a box on the first page, at a vertical offset. */
 async function drawShape(
   page: import("@playwright/test").Page,
   toolId: string,
   top = 60,
 ): Promise<void> {
+  await openDraw(page);
   await page.locator(toolId).click();
   const box = (await page.locator(".overlay").first().boundingBox())!;
   await page.mouse.move(box.x + 60, box.y + top);
@@ -96,6 +105,7 @@ test("a drawn shape can be resized by dragging a handle", async ({ page }) => {
 });
 
 test("turning fill on draws a filled rectangle", async ({ page }) => {
+  await openDraw(page);
   await page.locator("#shape-fill").click(); // enable fill
   await expect(page.locator("#shape-fill")).toHaveAttribute("aria-pressed", "true");
   await drawShape(page, "#shape-rectangle");
@@ -117,6 +127,7 @@ test("a focused shape moves with the keyboard", async ({ page }) => {
 });
 
 test("a tiny click (no drag) does not create a shape", async ({ page }) => {
+  await openDraw(page);
   await page.locator("#shape-rectangle").click();
   const box = (await page.locator(".overlay").first().boundingBox())!;
   await page.mouse.click(box.x + 80, box.y + 80);

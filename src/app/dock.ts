@@ -32,11 +32,7 @@ const GROUPS: DockGroup[] = [
   },
   {
     label: "Tools",
-    buttons: [
-      { id: "text-tool", name: "text", label: "Add text", pressed: true },
-      { id: "note-tool", name: "note", label: "Add note", pressed: true },
-      { id: "sign-tool", name: "sign", label: "Add signature", pressed: true },
-    ],
+    buttons: [{ id: "sign-tool", name: "sign", label: "Add signature", pressed: true }],
   },
   {
     label: "History",
@@ -278,6 +274,58 @@ function makePageGroup(): HTMLDivElement {
   return group;
 }
 
+/**
+ * A disclosure control: a toggle button that opens a popover panel of related
+ * controls above it. Keeps the dock uncluttered — the markup and drawing tools
+ * live in panels rather than on the main row. The panel's buttons stay out of the
+ * tab order until it opens (managed by enableDisclosures), and the toggle itself
+ * is a normal dock button in the roving tab order.
+ */
+function makeDisclosure(
+  toggleId: string,
+  label: string,
+  iconName: IconName,
+  panelId: string,
+  content: readonly HTMLElement[],
+): HTMLDivElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "dock-group dock-disclosure";
+
+  const toggle = iconButton(iconName, label, toggleId);
+  toggle.setAttribute("aria-haspopup", "true");
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.setAttribute("aria-controls", panelId);
+
+  const panel = document.createElement("div");
+  panel.id = panelId;
+  panel.className = "dock-popover";
+  panel.setAttribute("role", "group");
+  panel.setAttribute("aria-label", label);
+  panel.hidden = true;
+  for (const node of content) {
+    panel.append(node);
+  }
+  // Panel buttons are reachable only while the panel is open.
+  for (const button of panel.querySelectorAll("button")) {
+    button.tabIndex = -1;
+  }
+
+  wrapper.append(toggle, panel);
+  return wrapper;
+}
+
+/** The contents of the "Drawing & annotation" panel: text, note, shapes, ink. */
+function makeDrawingPanelContent(platform: Platform): HTMLElement[] {
+  const tools = document.createElement("div");
+  tools.className = "dock-group";
+  tools.setAttribute("aria-label", "Add");
+  tools.append(
+    makeButton({ id: "text-tool", name: "text", label: "Add text", pressed: true }, platform),
+    makeButton({ id: "note-tool", name: "note", label: "Add note", pressed: true }, platform),
+  );
+  return [tools, makeShapeGroup(platform), makeInkGroup(platform)];
+}
+
 // Actions that collapse into the overflow menu on a narrow window. Each item
 // activates the matching always-present dock button, so behaviour is wired once.
 const OVERFLOW_ITEMS: ReadonlyArray<{ action: string; label: string }> = [
@@ -331,14 +379,91 @@ export function buildDock(platform: Platform): HTMLElement {
   for (const group of GROUPS) {
     dock.append(makeGroup(group, platform));
   }
-  dock.append(makeMarkupGroup(platform));
-  dock.append(makeShapeGroup(platform));
-  dock.append(makeInkGroup(platform));
+  dock.append(
+    makeDisclosure("highlight-menu", "Highlight", "highlight", "highlight-panel", [
+      makeMarkupGroup(platform),
+    ]),
+  );
+  dock.append(
+    makeDisclosure(
+      "draw-menu",
+      "Drawing & annotation",
+      "pen",
+      "draw-panel",
+      makeDrawingPanelContent(platform),
+    ),
+  );
   dock.append(makeOverflow());
   dock.append(makePageGroup());
   dock.append(makeZoomGroup(platform));
   enableRovingToolbar(dock);
+  enableDisclosures(dock);
   return dock;
+}
+
+/**
+ * Wire the disclosure toggles: click opens the panel (closing any other), Escape
+ * or an outside click closes it. While open, the panel's buttons join the tab
+ * order and the first is focused; closing returns focus to the toggle.
+ */
+export function enableDisclosures(dock: HTMLElement): void {
+  const disclosures = [...dock.querySelectorAll<HTMLElement>(".dock-disclosure")];
+
+  const setOpen = (toggle: HTMLButtonElement, panel: HTMLElement, open: boolean): void => {
+    panel.hidden = !open;
+    toggle.setAttribute("aria-expanded", String(open));
+    for (const button of panel.querySelectorAll("button")) {
+      button.tabIndex = open ? 0 : -1;
+    }
+    // Focus is deliberately NOT moved into the panel on open: the markup tools
+    // act on the page's text selection, and stealing focus would clear it in
+    // WKWebView. The panel is revealed; Tab reaches its controls.
+  };
+
+  const closeAll = (except?: HTMLElement): void => {
+    for (const wrapper of disclosures) {
+      if (wrapper === except) {
+        continue;
+      }
+      const toggle = wrapper.querySelector<HTMLButtonElement>("button");
+      const panel = wrapper.querySelector<HTMLElement>(".dock-popover");
+      if (toggle && panel && !panel.hidden) {
+        setOpen(toggle, panel, false);
+      }
+    }
+  };
+
+  for (const wrapper of disclosures) {
+    const toggle = wrapper.querySelector<HTMLButtonElement>("button");
+    const panel = wrapper.querySelector<HTMLElement>(".dock-popover");
+    if (!toggle || !panel) {
+      continue;
+    }
+    // Open without stealing focus, so a live text selection survives (the markup
+    // tools depend on it); the click still toggles.
+    toggle.addEventListener("pointerdown", (event) => event.preventDefault());
+    toggle.addEventListener("click", () => {
+      const open = panel.hidden;
+      closeAll(wrapper);
+      setOpen(toggle, panel, open);
+    });
+    wrapper.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !panel.hidden) {
+        setOpen(toggle, panel, false);
+        toggle.focus();
+      }
+    });
+  }
+
+  // An outside pointer-down closes any open panel (but not clicks inside it or on
+  // a toggle, which the toggles handle themselves).
+  document.addEventListener("pointerdown", (event) => {
+    const target = event.target as Node;
+    const inside = disclosures.some((wrapper) => wrapper.contains(target));
+    if (!inside) {
+      closeAll();
+    }
+  });
 }
 
 const ARROW_KEYS: Record<string, RovingKey> = {
@@ -360,7 +485,11 @@ export function enableRovingToolbar(dock: HTMLElement): void {
   // actions). Read live so the set tracks the responsive state.
   const buttons = (): HTMLButtonElement[] =>
     [...dock.querySelectorAll<HTMLButtonElement>("button")].filter(
-      (button) => button.getAttribute("role") !== "menuitem" && !button.hidden,
+      (button) =>
+        button.getAttribute("role") !== "menuitem" &&
+        !button.hidden &&
+        // Buttons inside a disclosure panel manage their own focus, not roving.
+        !button.closest(".dock-popover"),
     );
 
   const setTabStop = (active: number): void => {

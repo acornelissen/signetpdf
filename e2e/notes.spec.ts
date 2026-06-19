@@ -31,6 +31,7 @@ test.beforeEach(async ({ page }) => {
 
 /** Arm the note tool and drop a note near the top-left of the first page. */
 async function dropNote(page: import("@playwright/test").Page): Promise<void> {
+  await page.locator("#draw-menu").click();
   await page.locator("#note-tool").click();
   const overlay = page.locator(".overlay").first();
   const box = (await overlay.boundingBox())!;

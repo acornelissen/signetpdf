@@ -338,6 +338,36 @@ body.drag-over::after {
   display: none;
 }
 
+/* Disclosure: a toggle whose panel of controls floats above it. */
+.dock-disclosure {
+  position: relative;
+}
+
+.dock-disclosure [hidden] {
+  display: none;
+}
+
+.dock-popover {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+
+/* Reflect the open state on the toggle. */
+.dock-disclosure > button[aria-expanded="true"] {
+  background: var(--surface-muted);
+}
+
 /* Popover anchored above the More button. */
 .dock-menu {
   position: absolute;
