@@ -54,6 +54,7 @@ import {
   DEFAULT_INK_COLOR,
   DEFAULT_MARKUP_COLOR,
   DEFAULT_SHAPE_COLOR,
+  DEFAULT_SHAPE_FILL,
 } from "./app/dock";
 import { markupSelection, type MarkupTargetPage } from "./annotations/markup";
 import type { Ink, MarkupStyle, Shape, ShapeKind } from "./model/document";
@@ -203,7 +204,8 @@ interface Viewer {
   // Stroke colour and width for newly drawn shapes; fill is off by default.
   shapeStroke: string;
   shapeStrokeWidth: number;
-  shapeFill: string | null;
+  shapeFill: string | null; // active fill (null = no fill)
+  shapeFillColor: string; // remembered fill colour, restored when fill is on
   // When the ink tool is armed, dragging on a page draws a freehand stroke.
   inkTool: boolean;
   inkColor: string;
@@ -366,6 +368,28 @@ function setupShapeTools(viewer: Viewer): void {
     }
     viewer.shapeStroke = colorInput.value;
     swatch?.style.setProperty("--markup-color", colorInput.value);
+  });
+
+  // Optional fill: the toggle turns fill on/off; the swatch chooses (and enables)
+  // the fill colour. viewer.shapeFill is the active fill, null when off.
+  const fillToggle = document.querySelector<HTMLButtonElement>("#shape-fill");
+  const fillSwatch = document.querySelector<HTMLButtonElement>("#shape-fill-color");
+  const fillInput = document.querySelector<HTMLInputElement>("#shape-fill-color-input");
+  const reflectFill = (on: boolean): void => {
+    viewer.shapeFill = on ? viewer.shapeFillColor : null;
+    fillToggle?.setAttribute("aria-pressed", String(on));
+  };
+  fillToggle?.addEventListener("click", () =>
+    reflectFill(fillToggle.getAttribute("aria-pressed") !== "true"),
+  );
+  fillSwatch?.addEventListener("click", () => fillInput?.click());
+  fillInput?.addEventListener("input", () => {
+    if (!fillInput.value) {
+      return;
+    }
+    viewer.shapeFillColor = fillInput.value;
+    fillSwatch?.style.setProperty("--markup-color", fillInput.value);
+    reflectFill(true); // choosing a fill colour turns fill on
   });
 }
 
@@ -2031,6 +2055,7 @@ window.addEventListener("DOMContentLoaded", () => {
     shapeStroke: DEFAULT_SHAPE_COLOR,
     shapeStrokeWidth: 2,
     shapeFill: null,
+    shapeFillColor: DEFAULT_SHAPE_FILL,
     inkTool: false,
     inkColor: DEFAULT_INK_COLOR,
     inkStrokeWidth: 2,

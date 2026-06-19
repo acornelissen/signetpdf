@@ -95,6 +95,15 @@ test("a drawn shape can be resized by dragging a handle", async ({ page }) => {
   expect(after.width).toBeGreaterThan(before.width + 30);
 });
 
+test("turning fill on draws a filled rectangle", async ({ page }) => {
+  await page.locator("#shape-fill").click(); // enable fill
+  await expect(page.locator("#shape-fill")).toHaveAttribute("aria-pressed", "true");
+  await drawShape(page, "#shape-rectangle");
+  const rect = page.locator(".overlay .shape.shape-rectangle rect");
+  await expect(rect).toHaveCount(1);
+  expect(await rect.getAttribute("fill")).not.toBe("none"); // filled
+});
+
 test("a tiny click (no drag) does not create a shape", async ({ page }) => {
   await page.locator("#shape-rectangle").click();
   const box = (await page.locator(".overlay").first().boundingBox())!;

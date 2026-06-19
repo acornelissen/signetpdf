@@ -53,6 +53,9 @@ export const DEFAULT_MARKUP_COLOR = "#ffeb3b";
 /** The default shape stroke colour. */
 export const DEFAULT_SHAPE_COLOR = "#cc0000";
 
+/** The default fill colour offered when fill is turned on. */
+export const DEFAULT_SHAPE_FILL = "#ffe08a";
+
 /** The default freehand-ink colour. */
 export const DEFAULT_INK_COLOR = "#1144ff";
 
@@ -129,7 +132,30 @@ function makeShapeGroup(platform: Platform): HTMLDivElement {
   input.tabIndex = -1;
   input.setAttribute("aria-hidden", "true");
 
-  group.append(swatch, input);
+  // Optional fill: a toggle (off by default) and a swatch to choose the colour.
+  const fill = makeButton(
+    { id: "shape-fill", name: "fill", label: "Fill", pressed: true },
+    platform,
+  );
+  fill.classList.add("shape-fill-toggle");
+
+  const fillSwatch = document.createElement("button");
+  fillSwatch.type = "button";
+  fillSwatch.id = "shape-fill-color";
+  fillSwatch.className = "btn-icon markup-color-swatch";
+  fillSwatch.setAttribute("aria-label", "Fill color");
+  fillSwatch.setAttribute("data-tip", "Fill color");
+  fillSwatch.style.setProperty("--markup-color", DEFAULT_SHAPE_FILL);
+
+  const fillInput = document.createElement("input");
+  fillInput.type = "color";
+  fillInput.id = "shape-fill-color-input";
+  fillInput.className = "markup-color-input";
+  fillInput.value = DEFAULT_SHAPE_FILL;
+  fillInput.tabIndex = -1;
+  fillInput.setAttribute("aria-hidden", "true");
+
+  group.append(swatch, input, fill, fillSwatch, fillInput);
   return group;
 }
 
