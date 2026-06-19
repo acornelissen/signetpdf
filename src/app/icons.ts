@@ -23,7 +23,7 @@ const PATHS = {
   circle: '<circle cx="12" cy="12" r="9"/>',
   line: '<path d="M5 19 19 5"/>',
   arrow: '<path d="M7 17 17 7"/><path d="M8 7h9v9"/>',
-  pen: '<path d="M12 19l7-7a2.83 2.83 0 0 0-4-4l-7 7-1 5z"/><path d="m18 6 0 0"/><path d="M2 22l3-1"/>',
+  squiggle: '<path d="M3 13c1-3 2.5-3 3.5 0s2.5 3 3.5 0 2.5-3 3.5 0 2.5 3 3.5 0 2.5-3 3.5 0"/>',
   fill: '<path d="M12 2.69 17.66 8.35a8 8 0 1 1-11.32 0z"/>',
   shapes:
     '<path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/>',

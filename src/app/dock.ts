@@ -66,7 +66,10 @@ function makeInkGroup(platform: Platform): HTMLDivElement {
   group.setAttribute("aria-label", "Draw");
 
   group.append(
-    makeButton({ id: "ink-tool", name: "pen", label: "Freehand draw", pressed: true }, platform),
+    makeButton(
+      { id: "ink-tool", name: "squiggle", label: "Freehand draw", pressed: true },
+      platform,
+    ),
   );
 
   const swatch = document.createElement("button");
