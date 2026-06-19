@@ -17,6 +17,7 @@ describe("buildDock", () => {
       "save-as",
       "export-flat",
       "text-tool",
+      "note-tool",
       "sign-tool",
       "markup-highlight",
       "markup-underline",

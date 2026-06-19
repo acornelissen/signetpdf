@@ -87,6 +87,7 @@ import {
 } from "./annotations/overlay";
 import { bindMarkupDelete, buildMarkupControl } from "./annotations/markupOverlay";
 import { bindNoteControl, bindNoteDelete, buildNoteControl } from "./annotations/noteOverlay";
+import { createNoteAt } from "./annotations/note";
 import { attachTextToolbar } from "./annotations/toolbar";
 import type { SnapBox } from "./annotations/transform";
 import { listFormFields, type FormField } from "./forms/fields";
@@ -175,6 +176,8 @@ interface Viewer {
   scale: number;
   // When the text tool is armed, clicking a page creates a text box.
   textTool: boolean;
+  // When the note tool is armed, clicking a page drops a sticky note.
+  noteTool: boolean;
   // When a signature is armed, clicking a page places it as a stamp.
   pendingStamp: StampImage | null;
   // The colour the next markup (highlight/underline/strikethrough) is drawn in.
@@ -777,6 +780,13 @@ function placeNotes(viewer: Viewer, page: RenderedPage, geometry: PageGeometry):
     });
     bindNoteDelete(control, annotation, (id) => deleteAnnotation(viewer, id));
     page.overlay.appendChild(control);
+    // A just-dropped note opens its popup so the comment can be typed at once.
+    if (annotation.id === viewer.focusAnnotationId) {
+      viewer.focusAnnotationId = null;
+      control.classList.add("open");
+      control.querySelector(".note-icon")?.setAttribute("aria-expanded", "true");
+      control.querySelector<HTMLTextAreaElement>(".note-text")?.focus();
+    }
   }
 }
 
@@ -812,6 +822,11 @@ function armCreateTools(viewer: Viewer, page: RenderedPage, geometry: PageGeomet
       viewer.focusAnnotationId =
         viewer.model.annotations[viewer.model.annotations.length - 1]?.id ?? null;
       setTextTool(viewer, false); // one box per activation
+    } else if (viewer.noteTool) {
+      applyEdit(viewer, createNoteAt(viewer.model, click, geometry, viewport));
+      viewer.focusAnnotationId =
+        viewer.model.annotations[viewer.model.annotations.length - 1]?.id ?? null;
+      setNoteTool(viewer, false); // one note per activation
     } else if (viewer.pendingStamp) {
       applyEdit(
         viewer,
@@ -1167,7 +1182,22 @@ function setTextTool(viewer: Viewer, active: boolean): void {
   viewer.textToolButton?.setAttribute("aria-pressed", String(active));
   if (active) {
     setStampTool(viewer, null); // tools are mutually exclusive
+    setNoteTool(viewer, false);
     notify(viewer, "Click on the page to place a text box. Press Esc to cancel.", "info");
+  }
+}
+
+/** Arm or disarm the sticky-note tool and reflect it on the toolbar and cursor. */
+function setNoteTool(viewer: Viewer, active: boolean): void {
+  viewer.noteTool = active;
+  viewer.mount.classList.toggle("tool-note", active);
+  document
+    .querySelector<HTMLButtonElement>("#note-tool")
+    ?.setAttribute("aria-pressed", String(active));
+  if (active) {
+    setTextTool(viewer, false); // tools are mutually exclusive
+    setStampTool(viewer, null);
+    notify(viewer, "Click on the page to drop a note. Press Esc to cancel.", "info");
   }
 }
 
@@ -1179,18 +1209,21 @@ function setStampTool(viewer: Viewer, image: StampImage | null): void {
     .querySelector<HTMLButtonElement>("#sign-tool")
     ?.setAttribute("aria-pressed", String(image !== null));
   if (image !== null) {
+    setTextTool(viewer, false); // tools are mutually exclusive
+    setNoteTool(viewer, false);
     notify(viewer, "Click on the page to place your signature. Press Esc to cancel.", "info");
   }
 }
 
-/** True while a create tool (text or signature) is armed. */
+/** True while a create tool (text, note or signature) is armed. */
 function toolArmed(viewer: Viewer): boolean {
-  return viewer.textTool || viewer.pendingStamp !== null;
+  return viewer.textTool || viewer.noteTool || viewer.pendingStamp !== null;
 }
 
 /** Cancel any armed create tool and clear its hint. */
 function cancelTools(viewer: Viewer): void {
   setTextTool(viewer, false);
+  setNoteTool(viewer, false);
   setStampTool(viewer, null);
   viewer.toasts?.clear();
 }
@@ -1648,6 +1681,7 @@ window.addEventListener("DOMContentLoaded", () => {
     path: null,
     scale: 1.25,
     textTool: false,
+    noteTool: false,
     pendingStamp: null,
     markupColor: DEFAULT_MARKUP_COLOR,
     markupRange: null,
@@ -1785,6 +1819,10 @@ window.addEventListener("DOMContentLoaded", () => {
 
   viewer.textToolButton?.addEventListener("click", () => {
     setTextTool(viewer, !viewer.textTool);
+  });
+
+  document.querySelector<HTMLButtonElement>("#note-tool")?.addEventListener("click", () => {
+    setNoteTool(viewer, !viewer.noteTool);
   });
 
   document.querySelector<HTMLButtonElement>("#sign-tool")?.addEventListener("click", () => {

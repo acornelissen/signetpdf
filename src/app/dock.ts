@@ -34,6 +34,7 @@ const GROUPS: DockGroup[] = [
     label: "Tools",
     buttons: [
       { id: "text-tool", name: "text", label: "Add text", pressed: true },
+      { id: "note-tool", name: "note", label: "Add note", pressed: true },
       { id: "sign-tool", name: "sign", label: "Add signature", pressed: true },
     ],
   },

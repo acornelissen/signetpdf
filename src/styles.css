@@ -723,6 +723,7 @@ body.drag-over::after {
 /* While a create tool is armed, the overlay captures clicks to place the new
    text box or signature (text selection is suspended during placement). */
 .viewer.tool-text .overlay,
+.viewer.tool-note .overlay,
 .viewer.tool-stamp .overlay {
   pointer-events: auto;
 }
@@ -942,7 +943,7 @@ body.drag-over::after {
 .overlay .note-popup {
   position: absolute;
   left: 0;
-  bottom: 26px; /* above the pin */
+  top: 26px; /* below the pin, so a note near the page top stays on-screen */
   display: none;
   flex-direction: column;
   gap: 6px;
@@ -962,7 +963,12 @@ body.drag-over::after {
 .overlay .note-text {
   min-height: 60px;
   resize: vertical;
-  font: inherit;
+  /* Set the font explicitly rather than `font: inherit`: the overlay carries
+     line-height 0 (to kill inline gaps), and an inherited line-height of 0 makes
+     the textarea non-editable in Blink. */
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.4;
   padding: 4px;
   border: 1px solid var(--border, rgba(0, 0, 0, 0.2));
   border-radius: 4px;
