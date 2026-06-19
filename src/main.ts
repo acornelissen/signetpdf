@@ -2356,22 +2356,19 @@ window.addEventListener("DOMContentLoaded", () => {
   // Intercept the native window close (the title-bar X): if there are unsaved
   // changes, confirm before discarding them. beforeunload does not reliably fire
   // for a Tauri window close, so this is the real guard for the desktop app.
-  let forceClose = false;
+  // onCloseRequested awaits this handler and then destroys the window unless
+  // preventDefault was called — so we only prevent when the user keeps changes.
   void getCurrentWindow()
     .onCloseRequested(async (event) => {
-      if (forceClose || !viewer.model?.dirty) {
-        return; // already confirmed, or nothing unsaved: let the window close
+      if (!viewer.model?.dirty) {
+        return; // nothing unsaved: let the close proceed
       }
-      // Stop this close; re-issue it ourselves only if the user confirms. The
-      // confirm is async (an in-app dialog), so preventing now is mandatory.
-      event.preventDefault();
       const discard = await confirmDialog(
         "You have unsaved changes. Close without saving?",
         "Close without saving",
       );
-      if (discard) {
-        forceClose = true; // the re-issued close passes straight through above
-        await getCurrentWindow().close();
+      if (!discard) {
+        event.preventDefault(); // keep the window open
       }
     })
     .catch(() => {
