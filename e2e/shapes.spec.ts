@@ -104,6 +104,18 @@ test("turning fill on draws a filled rectangle", async ({ page }) => {
   expect(await rect.getAttribute("fill")).not.toBe("none"); // filled
 });
 
+test("a focused shape moves with the keyboard", async ({ page }) => {
+  await drawShape(page, "#shape-rectangle");
+  const rect = page.locator(".overlay .shape.shape-rectangle");
+  await rect.focus();
+  const before = (await rect.boundingBox())!;
+  await page.keyboard.press("Shift+ArrowRight"); // 10pt move
+  await page.keyboard.press("Shift+ArrowDown");
+  const after = (await rect.boundingBox())!;
+  expect(after.x).toBeGreaterThan(before.x + 4);
+  expect(after.y).toBeGreaterThan(before.y + 4);
+});
+
 test("a tiny click (no drag) does not create a shape", async ({ page }) => {
   await page.locator("#shape-rectangle").click();
   const box = (await page.locator(".overlay").first().boundingBox())!;

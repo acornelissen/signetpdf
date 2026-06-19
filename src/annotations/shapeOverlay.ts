@@ -1,9 +1,10 @@
 import { modelToScreen, type Viewport } from "../model/coords";
 import type { PageGeometry, Shape } from "../model/document";
+import { screenPoint } from "../model/geometry";
 import { positionElement as position } from "../overlay/position";
 import { onHandleDrag } from "./drag";
 import { moveShape, resizeShapeEnd } from "./move";
-import type { ScreenRect } from "./transform";
+import { nudgeFromKey, type ScreenRect } from "./transform";
 
 // The shape overlay: an SVG drawing of a shape over the rendered page. Like the
 // other overlays it holds no state — the shape's two points are placed through
@@ -117,6 +118,10 @@ export function buildShapeControl(
   container.className = `shape shape-${shape.shape}`;
   container.dataset.annotationId = shape.id;
   container.dataset.annotationKind = "shape";
+  // Focusable so it can be selected and moved by keyboard without a pointer.
+  container.tabIndex = 0;
+  container.setAttribute("role", "group");
+  container.setAttribute("aria-label", `${shape.shape} (arrow keys move)`);
   position(container, geo.box);
 
   const root = svg("svg", {
@@ -188,6 +193,38 @@ export function bindShapeDrag(
       onMove(moveShape(shape, from, to, page, viewport));
     },
   );
+}
+
+/**
+ * Wire keyboard move for a focused shape: arrows move it (Shift = 10pt). The
+ * container repositions live and commits to the model on each step (no re-render,
+ * so focus is kept); geometry stays on the seam. Alt+arrow (resize) is ignored
+ * here — keyboard resize is not offered for shapes.
+ */
+export function bindShapeKeyboard(
+  container: HTMLElement,
+  shape: Shape,
+  page: PageGeometry,
+  viewport: Viewport,
+  onChange: (updated: Shape) => void,
+): void {
+  let current = shape;
+  container.addEventListener("keydown", (event) => {
+    const nudge = nudgeFromKey(event, viewport.scale);
+    if (!nudge || nudge.kind !== "move") {
+      return;
+    }
+    event.preventDefault();
+    current = moveShape(
+      current,
+      screenPoint(0, 0),
+      screenPoint(nudge.dxScreen, nudge.dyScreen),
+      page,
+      viewport,
+    );
+    position(container, shapeScreen(current, page, viewport).box);
+    onChange(current);
+  });
 }
 
 /**

@@ -97,12 +97,14 @@ import {
   bindNoteControl,
   bindNoteDelete,
   bindNoteDrag,
+  bindNoteKeyboard,
   buildNoteControl,
 } from "./annotations/noteOverlay";
 import { createNoteAt } from "./annotations/note";
 import {
   bindShapeDelete,
   bindShapeDrag,
+  bindShapeKeyboard,
   bindShapeResize,
   buildShapeControl,
 } from "./annotations/shapeOverlay";
@@ -892,6 +894,12 @@ function placeNotes(viewer: Viewer, page: RenderedPage, geometry: PageGeometry):
         void rerender(viewer);
       }
     });
+    // Keyboard nudge commits live without a re-render, keeping the pin focused.
+    bindNoteKeyboard(control, annotation, geometry, viewport, (updated) => {
+      if (viewer.model) {
+        applyEdit(viewer, updateAnnotation(viewer.model, updated));
+      }
+    });
     page.overlay.appendChild(control);
     // A just-dropped note opens its popup so the comment can be typed at once.
     if (annotation.id === viewer.focusAnnotationId) {
@@ -920,6 +928,12 @@ function placeShapes(viewer: Viewer, page: RenderedPage, geometry: PageGeometry)
     };
     bindShapeDrag(control, annotation, geometry, viewport, commit);
     bindShapeResize(control, annotation, geometry, viewport, commit);
+    // Keyboard nudge commits live without a re-render, keeping the shape focused.
+    bindShapeKeyboard(control, annotation, geometry, viewport, (updated) => {
+      if (viewer.model) {
+        applyEdit(viewer, updateAnnotation(viewer.model, updated));
+      }
+    });
     page.overlay.appendChild(control);
   }
 }

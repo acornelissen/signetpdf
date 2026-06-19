@@ -3,6 +3,7 @@ import type { PageGeometry, StickyNote } from "../model/document";
 import { screenPoint } from "../model/geometry";
 import { icon } from "../app/icons";
 import { moveNote } from "./move";
+import { nudgeFromKey } from "./transform";
 
 // The sticky-note overlay: a fixed-size pin at the note's anchor with a popup
 // that shows and edits the comment. Like the other overlays it holds no state —
@@ -176,6 +177,44 @@ export function bindNoteDrag(
     },
     true,
   );
+}
+
+/**
+ * Wire keyboard move for the note while its pin is focused: arrows move the
+ * anchor (Shift = 10pt). The container repositions live and commits on each step
+ * (no re-render, so focus is kept); geometry stays on the seam. Keys are ignored
+ * while the popup textarea is focused, so editing keeps native caret movement.
+ */
+export function bindNoteKeyboard(
+  container: HTMLElement,
+  note: StickyNote,
+  page: PageGeometry,
+  viewport: Viewport,
+  onChange: (updated: StickyNote) => void,
+): void {
+  const pin = container.querySelector<HTMLElement>(".note-icon");
+  if (!pin) {
+    return;
+  }
+  let current = note;
+  pin.addEventListener("keydown", (event) => {
+    const nudge = nudgeFromKey(event, viewport.scale);
+    if (!nudge || nudge.kind !== "move") {
+      return;
+    }
+    event.preventDefault();
+    current = moveNote(
+      current,
+      screenPoint(0, 0),
+      screenPoint(nudge.dxScreen, nudge.dyScreen),
+      page,
+      viewport,
+    );
+    const anchor = modelToScreen(current.origin, page, viewport);
+    container.style.left = `${anchor.x}px`;
+    container.style.top = `${anchor.y - NOTE_ICON_PX}px`;
+    onChange(current);
+  });
 }
 
 /** Wire the delete button so clicking it removes this note from the model. */

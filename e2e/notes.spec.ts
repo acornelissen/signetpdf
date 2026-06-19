@@ -69,6 +69,17 @@ test("dragging the pin moves the note without opening the popup", async ({ page 
   await expect(note).not.toHaveClass(/open/); // a drag, not a toggle
 });
 
+test("a focused note moves with the keyboard", async ({ page }) => {
+  await dropNote(page);
+  const pin = page.locator(".overlay .note .note-icon");
+  await pin.focus();
+  const before = (await pin.boundingBox())!;
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("Shift+ArrowRight");
+  const after = (await pin.boundingBox())!;
+  expect(after.x).toBeGreaterThan(before.x + 4);
+});
+
 test("a note can be deleted from its popup", async ({ page }) => {
   await dropNote(page);
   await expect(page.locator(".overlay .note")).toHaveCount(1);

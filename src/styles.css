@@ -988,6 +988,12 @@ body.drag-over::after {
   cursor: move;
 }
 
+/* Selected (focused) shape: a ring for keyboard move, matching the other types. */
+.overlay .shape:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 3px;
+}
+
 /* Resize handles at the shape's two defining points. */
 .overlay .shape-handle {
   position: absolute;
