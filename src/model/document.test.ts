@@ -178,6 +178,40 @@ describe("annotation mutations", () => {
     expect(added.quads).toHaveLength(1);
   });
 
+  it("adds a sticky-note annotation (the note union arm)", () => {
+    const note: NewAnnotation = {
+      kind: "note",
+      page: 0,
+      origin: userSpacePoint(72, 700),
+      text: "check this clause",
+    };
+    const model = addAnnotation(createModel(bytes), note);
+    const added = model.annotations[0];
+    expect(added?.kind).toBe("note");
+    expect(added?.id).toBeTruthy();
+    if (added?.kind !== "note") {
+      throw new Error("expected a note annotation");
+    }
+    expect(added.text).toBe("check this clause");
+    expect(added.origin).toEqual(userSpacePoint(72, 700));
+  });
+
+  it("updates a sticky note's text by id", () => {
+    const note: NewAnnotation = {
+      kind: "note",
+      page: 0,
+      origin: userSpacePoint(10, 20),
+      text: "old",
+    };
+    const added = addAnnotation(createModel(bytes), note);
+    const existing = added.annotations[0];
+    if (existing?.kind !== "note") {
+      throw new Error("expected a note annotation");
+    }
+    const updated = updateAnnotation(added, { ...existing, text: "new" });
+    expect(updated.annotations[0]).toMatchObject({ id: existing.id, text: "new" });
+  });
+
   it("updates a markup annotation's style by id", () => {
     const markup: NewAnnotation = {
       kind: "markup",

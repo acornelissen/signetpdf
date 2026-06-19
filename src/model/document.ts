@@ -70,7 +70,20 @@ export interface Markup {
   readonly quads: readonly MarkupQuad[];
 }
 
-export type Annotation = TextBox | SignatureStamp | Markup;
+/**
+ * A sticky-note comment: an anchor point on the page carrying a comment string.
+ * The on-screen icon is a fixed size (a screen concern), so the model keeps only
+ * the anchor (its bottom-left in user space) and the text — no box.
+ */
+export interface StickyNote {
+  readonly kind: "note";
+  readonly id: string;
+  readonly page: number;
+  readonly origin: UserSpacePoint; // anchor, bottom-left of the note icon
+  readonly text: string;
+}
+
+export type Annotation = TextBox | SignatureStamp | Markup | StickyNote;
 
 /** Per-page geometry captured from pdf.js, in user-space units. */
 export interface PageGeometry {
@@ -143,7 +156,11 @@ export function setFieldValue(
 }
 
 /** An annotation to add, without its id (the model mints the id centrally). */
-export type NewAnnotation = Omit<TextBox, "id"> | Omit<SignatureStamp, "id"> | Omit<Markup, "id">;
+export type NewAnnotation =
+  | Omit<TextBox, "id">
+  | Omit<SignatureStamp, "id">
+  | Omit<Markup, "id">
+  | Omit<StickyNote, "id">;
 
 /** Add an annotation with a freshly minted id; returns a new, dirty model. */
 export function addAnnotation(model: DocumentModel, draft: NewAnnotation): DocumentModel {
