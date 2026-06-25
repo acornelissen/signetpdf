@@ -5,6 +5,16 @@ All notable changes to Ceralo are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-06-25
+
+No user-facing changes. Documentation and CI maintenance only.
+
+### Changed
+
+- Documented the Windows code-signing plan in detail: it is deferred until the
+  project qualifies for the SignPath Foundation's free open-source signing.
+- CI and CodeQL now skip docs-only pushes to save runner time.
+
 ## [1.0.1] - 2026-06-19
 
 ### Changed
@@ -149,6 +159,7 @@ Initial release — the walking skeleton through milestone M5.
 - Native file I/O via Rust commands (open, save, save as) with a path-grant
   allowlist.
 
+[1.0.2]: https://github.com/acornelissen/ceralo/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/acornelissen/ceralo/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/acornelissen/ceralo/compare/v0.4.2...v1.0.0
 [0.4.2]: https://github.com/acornelissen/ceralo/compare/v0.4.1...v0.4.2

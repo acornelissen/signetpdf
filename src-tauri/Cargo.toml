@@ -1,6 +1,6 @@
 [package]
 name = "ceralo"
-version = "1.0.1"
+version = "1.0.2"
 description = "A minimal, free, cross-platform PDF viewer for filling forms, editing text and signing."
 authors = ["The Ceralo contributors"]
 edition = "2021"
