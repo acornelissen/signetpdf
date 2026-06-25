@@ -3,19 +3,22 @@
 A minimal, free, cross-platform PDF viewer for filling forms, editing text and signing.
 
 Ceralo is a desktop app (Tauri 2 + Vite + TypeScript) that opens a PDF, fills its
-AcroForm fields, adds free-text annotations, and places a visual signature, then saves the
-result back to a real PDF. It is deliberately small: no accounts, no cloud, no telemetry.
+AcroForm fields, edits formatted text, marks up and annotates the page, and places a
+visual signature, then saves the result back to a real PDF. It is deliberately small:
+no accounts, no cloud, no telemetry.
 
 ## Status
 
-Active development; latest release 0.4.0. Working today: AcroForm filling; free-text
-annotations with bold/italic/colour/alignment and a sans/serif/mono font choice; drawn or
-imported signatures, with reuse and a saved-signature manager; selectable text with copy;
-find-in-document; a custom right-click menu; keyboard move/resize of annotations with
-snapping; undo/redo; and flatten-on-export. Binary signing and notarization are the main
-gap. See the build plan in the [beads](https://github.com/gastownhall/beads) tracker under
-`.beads/` (`bd ready` to list available work), the [changelog](CHANGELOG.md) for release
-history, and [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for current limitations.
+Active development; latest release 1.0.2. Working today: AcroForm filling; formatted
+free-text annotations with bold/italic/colour/alignment and a sans/serif/mono font
+choice; text markup (highlight, underline, strikethrough); sticky-note comments; shapes
+(rectangle, ellipse, line, arrow, with an optional fill); freehand ink; and drawn or
+imported signatures, with reuse and a saved-signature manager. Plus selectable text with
+copy; find-in-document; a custom right-click menu; keyboard move/resize of annotations
+with snapping; undo/redo; and flatten-on-export. Binary signing and notarization are the
+main remaining gap. See the build plan in the [beads](https://github.com/gastownhall/beads)
+tracker under `.beads/` (`bd ready` to list available work), the [changelog](CHANGELOG.md)
+for release history, and [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for current limitations.
 
 ## Screenshots
 
@@ -28,6 +31,18 @@ Adding free text, with the inline formatting toolbar (font, size, bold, italic,
 colour, alignment):
 
 ![Adding a formatted text annotation](docs/screenshots/text.png)
+
+Marking up text — highlight, underline and strikethrough, in any colour:
+
+![Highlighting, underlining and striking through text](docs/screenshots/markup.png)
+
+Drawing shapes — rectangle, ellipse, line and arrow, with an optional fill:
+
+![Drawing shapes on a page](docs/screenshots/shapes.png)
+
+Freehand ink for handwritten marks:
+
+![Freehand ink drawn on a page](docs/screenshots/ink.png)
 
 Drawing a signature to place on the page (or import an image, and save it for
 reuse):

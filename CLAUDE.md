@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Ceralo is a minimal, free, cross-platform PDF viewer for filling forms, editing text and signing. The Tauri 2 + Vite + TypeScript app is well past the walking skeleton: as of 0.4.0 it renders PDFs (virtualized), fills AcroForm fields, edits formatted text (with a sans/serif/mono font choice), draws/imports and places signatures (with reuse and a manager), and supports selectable text, find-in-document, a custom right-click menu, keyboard move/resize with snapping, undo/redo, and saving via pdf-lib. The main remaining gap is binary signing/notarization plus ongoing polish. Work is tracked in beads (see Task tracking below). The architecture below is the enforced design; follow it rather than inventing a different structure.
+Ceralo is a minimal, free, cross-platform PDF viewer for filling forms, editing text and signing. The Tauri 2 + Vite + TypeScript app is well past the walking skeleton: as of 1.0 it renders PDFs (virtualized), fills AcroForm fields, edits formatted text (with a sans/serif/mono font choice), marks up text (highlight/underline/strikethrough), adds sticky-note comments, draws shapes (rectangle/ellipse/line/arrow with optional fill) and freehand ink, draws/imports and places signatures (with reuse and a manager), and supports selectable text, find-in-document, a custom right-click menu, keyboard move/resize with snapping, undo/redo, and saving via pdf-lib. The main remaining gap is binary signing/notarization plus ongoing polish. Work is tracked in beads (see Task tracking below). The architecture below is the enforced design; follow it rather than inventing a different structure.
 
 ## Task tracking (read before starting work)
 

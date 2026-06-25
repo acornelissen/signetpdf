@@ -2,13 +2,13 @@
 
 ## Supported versions
 
-Ceralo is pre-1.0 and ships fixes only on the latest release. Please make sure
-you are on the most recent version before reporting.
+Ceralo ships fixes only on the latest release. Please make sure you are on the
+most recent version before reporting.
 
 | Version | Supported |
 | ------- | --------- |
-| 0.4.x   | ✅        |
-| < 0.4   | ❌        |
+| 1.0.x   | ✅        |
+| < 1.0   | ❌        |
 
 ## Reporting a vulnerability
 
